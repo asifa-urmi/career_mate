@@ -6,6 +6,7 @@ import type { Role } from '@prisma/client'
 import { cn } from '@/lib/utils/cn'
 import { navFor, WORKSPACE_LABEL } from '@/config/nav'
 import { Avatar } from '@/components/ui'
+import { signOutAction } from '@/app/(auth)/actions'
 import { Brand } from './brand'
 import { textGlyph } from '@/lib/utils/glyph'
 import { isNavItemActive } from './nav-active'
@@ -85,12 +86,22 @@ export function Sidebar({
         ))}
       </nav>
 
-      <div className="mt-auto flex items-center gap-2.5 border-t border-white/10 pt-3">
-        <Avatar name={userName} size={38} />
-        <div className="min-w-0">
-          <b className="block truncate text-[13px] text-white">{userName}</b>
-          <small className="block truncate text-[11px] text-[#8b97b5]">{userSubtitle}</small>
+      <div className="mt-auto border-t border-white/10 pt-3">
+        <div className="flex items-center gap-2.5">
+          <Avatar name={userName} size={38} />
+          <div className="min-w-0 flex-1">
+            <b className="block truncate text-[13px] text-white">{userName}</b>
+            <small className="block truncate text-[11px] text-[#8b97b5]">{userSubtitle}</small>
+          </div>
         </div>
+        <form action={signOutAction} className="mt-2.5">
+          <button
+            type="submit"
+            className="w-full rounded-[10px] border border-white/12 px-3 py-2 text-[13px] font-semibold text-[#aeb9d2] transition-colors hover:bg-white/10 hover:text-white"
+          >
+            Sign out
+          </button>
+        </form>
       </div>
     </aside>
   )
