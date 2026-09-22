@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils/cn'
 import { navFor, WORKSPACE_LABEL } from '@/config/nav'
 import { Avatar } from '@/components/ui'
 import { Brand } from './brand'
+import { textGlyph } from '@/lib/utils/glyph'
 import { isNavItemActive } from './nav-active'
 
 /**
@@ -72,7 +73,7 @@ export function Sidebar({
                       )}
                     >
                       <span className="w-6 text-center" aria-hidden="true">
-                        {item.glyph}
+                        {textGlyph(item.glyph)}
                       </span>
                       {item.label}
                     </Link>
