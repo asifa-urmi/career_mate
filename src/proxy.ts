@@ -3,7 +3,8 @@ import { updateSession } from '@/lib/supabase/middleware'
 import { decideRoute } from '@/lib/auth/route-decision'
 
 /**
- * Two jobs, both cheap:
+ * Runs before every matched request (Next 16 renamed this file convention from
+ * "middleware" to "proxy"). Two jobs, both cheap:
  *
  *  1. Refresh the Supabase session on every request, so a long-lived tab does
  *     not silently expire.
@@ -16,7 +17,7 @@ import { decideRoute } from '@/lib/auth/route-decision'
  * would drag Prisma into the Edge runtime where it does not run. The layouts call
  * decideGroupAccess with the role they already have.
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { response, userId } = await updateSession(request)
 
   if (!userId) {
