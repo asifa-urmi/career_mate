@@ -1,6 +1,12 @@
 import type { Role } from '@prisma/client'
 
-export type RouteGroup = 'marketing' | 'auth' | 'candidate' | 'employer' | 'admin'
+/**
+ * `shared` is for pages every signed-in role needs and none of them owns —
+ * account settings and the notification inbox. Without it those pages would have
+ * to be duplicated per role, or filed under one role and then refused to the
+ * others by their own sidebar's links.
+ */
+export type RouteGroup = 'marketing' | 'auth' | 'shared' | 'candidate' | 'employer' | 'admin'
 
 const HOME_BY_ROLE: Record<Role, string> = {
   CANDIDATE: '/dashboard',
@@ -20,14 +26,18 @@ export function homePathFor(role: Role): string {
  * candidate group. A prefix check would misfile both.
  */
 const GROUP_BY_SEGMENT: Record<string, RouteGroup> = {
-  // marketing
+  // marketing — public
   'jobs-public': 'marketing',
 
-  // auth
+  // auth — signing in, signing up, finishing setup
   login: 'auth',
   signup: 'auth',
   onboarding: 'auth',
   'company-setup': 'auth',
+
+  // shared — any signed-in role
+  settings: 'shared',
+  notifications: 'shared',
 
   // candidate
   dashboard: 'candidate',
@@ -39,8 +49,6 @@ const GROUP_BY_SEGMENT: Record<string, RouteGroup> = {
   'ai-coach': 'candidate',
   messages: 'candidate',
   profile: 'candidate',
-  notifications: 'candidate',
-  settings: 'candidate',
 
   // employer
   employer: 'employer',
@@ -67,9 +75,9 @@ export function routeGroupFor(pathname: string): RouteGroup {
 }
 
 const ALLOWED_GROUPS: Record<Role, readonly RouteGroup[]> = {
-  CANDIDATE: ['marketing', 'auth', 'candidate'],
-  EMPLOYER: ['marketing', 'auth', 'employer'],
-  ADMIN: ['marketing', 'auth', 'candidate', 'employer', 'admin'],
+  CANDIDATE: ['marketing', 'auth', 'shared', 'candidate'],
+  EMPLOYER: ['marketing', 'auth', 'shared', 'employer'],
+  ADMIN: ['marketing', 'auth', 'shared', 'candidate', 'employer', 'admin'],
 }
 
 export function canAccess(role: Role, group: RouteGroup): boolean {
