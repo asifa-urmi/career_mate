@@ -14,7 +14,7 @@ export async function enforceAuthPage(pathname: string): Promise<SessionUser | n
   const user = await getCurrentUser()
   if (!user) return null
 
-  const decision = decideAuthPageAccess(pathname, user.role, Boolean(user.onboardedAt))
+  const decision = decideAuthPageAccess(pathname, user.role, user.onboarded)
   if (decision.action === 'redirect') redirect(decision.to)
 
   return user

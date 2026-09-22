@@ -3,11 +3,23 @@ import 'server-only'
 import type { Role } from '@prisma/client'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { createUserWithRole, findUserById } from '@/lib/db/repositories/user.repository'
+import { isOnboarded } from '@/lib/auth/session'
 import { appError, validationError } from '@/lib/utils/errors'
 import { err, ok, type Result } from '@/lib/utils/result'
 import type { LoginInput, SignupInput } from '@/lib/validation/auth.schema'
 
-export type AuthenticatedUser = { userId: string; role: Role; onboarded: boolean }
+export type AuthenticatedUser = {
+  userId: string
+  role: Role
+  onboarded: boolean
+  /**
+   * True when Supabase accepted the signup but issued no session because the
+   * project requires email confirmation — which is the default. The caller must
+   * show a "check your inbox" screen; redirecting to onboarding would land on a
+   * guard that finds no session and bounces to /login with no explanation.
+   */
+  needsEmailConfirmation: boolean
+}
 
 type SupabaseAuthError = { message: string; code?: string; status?: number }
 
@@ -55,9 +67,25 @@ export async function signUp(input: SignupInput): Promise<Result<AuthenticatedUs
     return err(appError('INTERNAL', 'We could not create your account. Please try again.'))
   }
 
+  // With email confirmation enabled — Supabase's default — signing up with an
+  // address that already has a confirmed account is NOT an error. GoTrue returns
+  // an obfuscated user carrying a fresh random id and an empty identities array,
+  // so that the form cannot be used to discover which addresses are registered.
+  // An absent array is not the same signal and must not produce a false conflict.
+  if (Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+    return err(appError('CONFLICT', 'That email is already registered. Sign in instead.'))
+  }
+
+  const needsEmailConfirmation = !data.session
+
   const existing = await findUserById(data.user.id)
   if (existing) {
-    return ok({ userId: existing.id, role: existing.role, onboarded: Boolean(existing.onboardedAt) })
+    return ok({
+      userId: existing.id,
+      role: existing.role,
+      onboarded: isOnboarded(existing),
+      needsEmailConfirmation,
+    })
   }
 
   try {
@@ -67,7 +95,7 @@ export async function signUp(input: SignupInput): Promise<Result<AuthenticatedUs
       name: input.name,
       role: input.role,
     })
-    return ok({ userId: user.id, role: user.role, onboarded: false })
+    return ok({ userId: user.id, role: user.role, onboarded: false, needsEmailConfirmation })
   } catch {
     return err(
       appError(
@@ -109,5 +137,10 @@ export async function signIn(input: LoginInput): Promise<Result<AuthenticatedUse
     )
   }
 
-  return ok({ userId: user.id, role: user.role, onboarded: Boolean(user.onboardedAt) })
+  return ok({
+    userId: user.id,
+    role: user.role,
+    onboarded: isOnboarded(user),
+    needsEmailConfirmation: false,
+  })
 }

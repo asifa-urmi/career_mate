@@ -103,3 +103,26 @@ export const WORKSPACE_LABEL: Record<Role, string> = {
   EMPLOYER: 'Employer workspace',
   ADMIN: 'Platform admin',
 }
+
+/**
+ * Where the app shell's search box posts, per role.
+ *
+ * One form is rendered for every role, so a single hardcoded target silently
+ * discards an employer's query and bounces them to their own dashboard. The
+ * route-existence test asserts each role's target is one its own guard admits.
+ */
+const SEARCH_ACTION: Record<Role, string> = {
+  CANDIDATE: '/jobs',
+  EMPLOYER: '/candidates',
+  ADMIN: '/admin/jobs',
+}
+
+export function searchActionFor(role: Role): string {
+  return SEARCH_ACTION[role]
+}
+
+export const SEARCH_PLACEHOLDER: Record<Role, string> = {
+  CANDIDATE: 'Search jobs, companies, skills…',
+  EMPLOYER: 'Search candidates…',
+  ADMIN: 'Search listings…',
+}

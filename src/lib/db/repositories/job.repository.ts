@@ -1,6 +1,7 @@
 import type { JobCategory, JobType, Prisma, WorkMode } from '@prisma/client'
 import { prisma } from '@/lib/db/prisma'
 import { formatTaka, relativeTime } from '@/lib/utils/format'
+import { buildSearchClause } from './job-search'
 
 /**
  * What a job card needs, and nothing else.
@@ -93,19 +94,8 @@ function publishedWhere(filter: JobFilter): Prisma.JobWhereInput {
   }
 
   if (filter.search) {
-    const search = filter.search.trim()
-    if (search) {
-      where.AND = [
-        {
-          OR: [
-            { title: { contains: search, mode: 'insensitive' } },
-            { summary: { contains: search, mode: 'insensitive' } },
-            { company: { name: { contains: search, mode: 'insensitive' } } },
-            { requiredSkills: { has: search } },
-          ],
-        },
-      ]
-    }
+    const clause = buildSearchClause(filter.search)
+    if (clause) where.AND = [clause]
   }
 
   return where
@@ -136,4 +126,49 @@ export async function countJobsByCategory(): Promise<Partial<Record<JobCategory,
   })
 
   return Object.fromEntries(rows.map((r) => [r.category, r._count._all]))
+}
+
+export type JobDetailModel = JobCardModel & {
+  summary: string
+  responsibilities: string[]
+  requirements: string[]
+  preferredSkills: string[]
+  requiredSkills: string[]
+  companyAbout: string | null
+  companyLocation: string | null
+}
+
+/**
+ * One published, approved job, or null.
+ *
+ * Applies the same status and moderation conditions as the listings, so a job
+ * that is a draft, closed or awaiting moderation is not reachable by guessing or
+ * keeping its URL.
+ */
+export async function findPublishedJob(id: string): Promise<JobDetailModel | null> {
+  const job = await prisma.job.findFirst({
+    where: { id, status: 'PUBLISHED', moderation: 'APPROVED' },
+    select: {
+      ...CARD_SELECT,
+      summary: true,
+      responsibilities: true,
+      requirements: true,
+      preferredSkills: true,
+      company: { select: { name: true, logoInitials: true, about: true, location: true } },
+    },
+  })
+
+  if (!job) return null
+
+  return {
+    ...toCardModel(job),
+    skills: job.requiredSkills,
+    summary: job.summary,
+    responsibilities: job.responsibilities,
+    requirements: job.requirements,
+    preferredSkills: job.preferredSkills,
+    requiredSkills: job.requiredSkills,
+    companyAbout: job.company.about,
+    companyLocation: job.company.location,
+  }
 }

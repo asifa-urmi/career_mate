@@ -13,6 +13,27 @@ export function AuthForm({ mode, action }: { mode: 'login' | 'signup'; action: A
   const signup = mode === 'signup'
   const [role, setRole] = useState(state.values?.role ?? 'CANDIDATE')
 
+  if (state.confirmationSentTo) {
+    return (
+      <div className="grid gap-4 text-center">
+        <span className="mx-auto grid size-14 place-items-center rounded-full bg-mint-soft text-2xl text-mint-ink">
+          ✉
+        </span>
+        <h2 className="m-0 font-display text-2xl font-extrabold">Check your inbox</h2>
+        <p className="m-0 text-sm leading-relaxed text-muted">
+          We sent a confirmation link to <b className="text-navy">{state.confirmationSentTo}</b>.
+          Open it to activate your account, then sign in.
+        </p>
+        <p className="m-0 text-xs leading-relaxed text-muted">
+          Nothing arrived? Check your spam folder — the link can take a minute.
+        </p>
+        <Button href="/login" variant="ghost">
+          Go to sign in
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <form action={formAction} className="grid gap-4">
       {state.formError && (

@@ -94,9 +94,30 @@ server. Never prefix it with `NEXT_PUBLIC_`.
 
 ### 2. Create the database tables
 
+The migrations are committed, so this applies reviewed SQL rather than
+generating new SQL on your machine:
+
 ```bash
-npm run db:migrate -- --name init
+npm run db:deploy
 ```
+
+That runs two migrations. The first creates the tables. The second is the one
+that matters for safety: **`20260923000001_rls_deny_all`**.
+
+Supabase grants every table in the `public` schema to the `anon` role by
+default, and the anon key is deliberately public — it ships inside the browser
+bundle. Prisma creates tables with row-level security switched off. Without that
+second migration, anyone with your site's public key could read every row
+through Supabase's REST API, and could `PATCH` their own `User` row to
+`role: "ADMIN"` — a complete takeover, because every permission check in the app
+reads the role from exactly that row.
+
+This app never uses that REST API; all database access goes through Prisma on
+the server, behind service-layer authorization. So the migration enables and
+forces RLS on all 21 tables, revokes the public grants, and creates no policies
+at all. Nothing is reachable through the public API.
+
+`npm test` fails if a future table is added without the same treatment.
 
 Then load the demo jobs so the site is not empty on its first visit:
 
@@ -150,8 +171,10 @@ git push -u origin main
 ### 5. Deploy on Vercel
 
 1. Go to [vercel.com/new](https://vercel.com/new) and import the repository.
-2. Framework preset: **Next.js** (detected automatically). Leave the build
-   command alone — `npm run build` already runs `prisma generate`.
+2. Framework preset: **Next.js** (detected automatically). Set the **Build
+   Command** to `npm run vercel-build`, which applies any pending migrations
+   before building. Without it, a deploy that adds a migration ships code whose
+   tables do not exist yet.
 3. Under **Environment Variables**, add every required variable from
    `.env.example`: `DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_SUPABASE_URL`,
    `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, plus any AI keys.

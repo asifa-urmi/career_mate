@@ -8,6 +8,35 @@ export type SessionUser = {
   name: string
   role: Role
   onboardedAt: Date | null
+  /** Derived — see `isOnboarded`. Guards and routing use this, never the stamp. */
+  onboarded: boolean
+}
+
+type UserRow = {
+  role: Role
+  onboardedAt: Date | null
+  candidateProfile: { id: string } | null
+  employerProfile: { id: string } | null
+}
+
+/**
+ * Whether setup is genuinely finished.
+ *
+ * The `onboardedAt` timestamp alone is not enough, because the role and the
+ * profile can disagree. Promoting a candidate to EMPLOYER — which the admin
+ * screen exists to do, and which the README's own admin procedure walks through
+ * — leaves the stamp set and no EmployerProfile. Trusting the stamp then traps
+ * that person: /employer sees no company and points at /company-setup, which
+ * sees "onboarded" and points back at /employer, with no way out.
+ *
+ * Admins have neither profile by design, so for them the stamp is the whole
+ * answer.
+ */
+export function isOnboarded(user: UserRow): boolean {
+  if (!user.onboardedAt) return false
+  if (user.role === 'ADMIN') return true
+  if (user.role === 'EMPLOYER') return Boolean(user.employerProfile)
+  return Boolean(user.candidateProfile)
 }
 
 /**
@@ -24,5 +53,14 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   if (error || !data.user) return null
 
   const user = await findUserById(data.user.id)
-  return user ?? null
+  if (!user) return null
+
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    onboardedAt: user.onboardedAt,
+    onboarded: isOnboarded(user),
+  }
 }

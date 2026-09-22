@@ -37,7 +37,7 @@ export async function candidateDashboardStats(userId: string): Promise<Candidate
 
   if (!profile) {
     return {
-      missingSignals: [],
+      missingSignals: missingProfileSignals(null).map((s) => ({ label: s.label, href: s.href })),
       applications: 0,
       inProgress: 0,
       savedJobs: 0,

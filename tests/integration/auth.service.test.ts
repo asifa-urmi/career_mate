@@ -154,3 +154,104 @@ describe('signIn', () => {
     if (!result.ok) expect(result.error.code).toBe('INTERNAL')
   })
 })
+
+describe('signUp under Supabase default configuration (email confirmation on)', () => {
+  beforeEach(() => {
+    signUpMock.mockReset()
+    createUserWithRole.mockReset()
+    findUserById.mockReset()
+  })
+
+  // With confirmations enabled, GoTrue does NOT return an error for an existing
+  // confirmed address. It returns an obfuscated user with a *fresh random* id and
+  // an empty identities array. Branching only on `error` writes a second User row
+  // keyed on a uuid that no session will ever carry.
+  it('detects an existing account from an empty identities array', async () => {
+    signUpMock.mockResolvedValue({
+      data: {
+        user: { id: 'random-obfuscated-uuid', identities: [], email: 'a@b.com' },
+        session: null,
+      },
+      error: null,
+    })
+
+    const result = await signUp(input)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error.code).toBe('CONFLICT')
+      expect(result.error.message).toMatch(/already registered/i)
+    }
+    expect(createUserWithRole).not.toHaveBeenCalled()
+  })
+
+  // A genuine new signup with confirmations on has no session yet. Reporting it
+  // as signed in sends the person to onboarding, which finds no session and
+  // bounces them to the login page with no explanation.
+  it('reports a genuine new signup as needing confirmation rather than signed in', async () => {
+    signUpMock.mockResolvedValue({
+      data: {
+        user: { id: 'uid-new', identities: [{ id: 'i-1' }], email: 'new@b.com' },
+        session: null,
+      },
+      error: null,
+    })
+    createUserWithRole.mockResolvedValue({
+      id: 'uid-new',
+      role: 'CANDIDATE',
+      onboardedAt: null,
+      candidateProfile: null,
+      employerProfile: null,
+    })
+
+    const result = await signUp({ ...input, email: 'new@b.com' })
+
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value.needsEmailConfirmation).toBe(true)
+    // The profile row is still written, so confirming the email lands on a
+    // complete account rather than the missing-profile dead end.
+    expect(createUserWithRole).toHaveBeenCalled()
+  })
+
+  it('reports an immediately-usable signup when confirmations are off', async () => {
+    signUpMock.mockResolvedValue({
+      data: {
+        user: { id: 'uid-new', identities: [{ id: 'i-1' }], email: 'new@b.com' },
+        session: { access_token: 'tok' },
+      },
+      error: null,
+    })
+    createUserWithRole.mockResolvedValue({
+      id: 'uid-new',
+      role: 'CANDIDATE',
+      onboardedAt: null,
+      candidateProfile: null,
+      employerProfile: null,
+    })
+
+    const result = await signUp({ ...input, email: 'new@b.com' })
+
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value.needsEmailConfirmation).toBe(false)
+  })
+
+  it('still detects an existing account when identities is absent entirely', async () => {
+    signUpMock.mockResolvedValue({
+      data: { user: { id: 'random-uuid', email: 'a@b.com' }, session: null },
+      error: null,
+    })
+    createUserWithRole.mockResolvedValue({
+      id: 'random-uuid',
+      role: 'CANDIDATE',
+      onboardedAt: null,
+      candidateProfile: null,
+      employerProfile: null,
+    })
+
+    const result = await signUp(input)
+
+    // An absent array is not evidence of a duplicate, so this must NOT be a
+    // false CONFLICT — it proceeds and relies on the unique constraint.
+    expect(result.ok).toBe(true)
+  })
+})

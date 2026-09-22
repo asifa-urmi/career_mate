@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { Role } from '@prisma/client'
 import { Button } from '@/components/ui'
+import { SEARCH_PLACEHOLDER, searchActionFor } from '@/config/nav'
 import { Sidebar } from './sidebar'
 
 /**
@@ -58,9 +59,9 @@ export function AppShell({
             ☰
           </button>
 
-          <form action="/jobs" className="relative hidden flex-1 sm:block sm:max-w-[460px]">
+          <form action={searchActionFor(role)} className="relative hidden flex-1 sm:block sm:max-w-[460px]">
             <label htmlFor="global-search" className="sr-only">
-              Search jobs and companies
+              Search
             </label>
             <span
               className="pointer-events-none absolute top-2 left-3.5 text-[22px] text-[#7d879f]"
@@ -71,7 +72,7 @@ export function AppShell({
             <input
               id="global-search"
               name="q"
-              placeholder="Search jobs, companies, people…"
+              placeholder={SEARCH_PLACEHOLDER[role]}
               className="w-full rounded-[var(--radius-field)] border border-line bg-surface py-3 pr-3.5 pl-10 text-sm outline-none focus:border-blue"
             />
           </form>

@@ -1,13 +1,21 @@
 import type { Role } from '@prisma/client'
 import { prisma } from '@/lib/db/prisma'
 
-/** The only fields the session and guards need. Keeps the query narrow. */
+/**
+ * What the session and guards need.
+ *
+ * The two profile relations are selected because "has this person finished
+ * setting up?" cannot be answered by the `onboardedAt` timestamp alone — see
+ * `getCurrentUser`.
+ */
 const SESSION_SELECT = {
   id: true,
   email: true,
   name: true,
   role: true,
   onboardedAt: true,
+  candidateProfile: { select: { id: true } },
+  employerProfile: { select: { id: true } },
 } as const
 
 export function findUserById(id: string) {

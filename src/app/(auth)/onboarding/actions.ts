@@ -24,6 +24,10 @@ function fieldErrorsFrom(issues: { path: PropertyKey[]; message: string }[]) {
  * The wizard submits once, at the end. Everything it collected is re-validated
  * here against the same schema the browser used — this run is the one that
  * counts, because a crafted POST never touches the browser's copy.
+ *
+ * Role and ownership are checked inside the service, not here: a server action
+ * is addressed by a build-hash id identical for every user of a deployment and
+ * does not run the route-group layout that guards its page.
  */
 export async function completeOnboardingAction(
   _prev: SetupFormState,
@@ -36,7 +40,7 @@ export async function completeOnboardingAction(
     return { fieldErrors: fieldErrorsFrom(parsed.error.issues) }
   }
 
-  const result = await completeOnboarding(user.id, parsed.data)
+  const result = await completeOnboarding(user, parsed.data)
   if (!result.ok) return { formError: result.error.message }
 
   revalidatePath('/', 'layout')
@@ -54,7 +58,7 @@ export async function completeCompanySetupAction(
     return { fieldErrors: fieldErrorsFrom(parsed.error.issues) }
   }
 
-  const result = await completeCompanySetup(user.id, user.name, parsed.data)
+  const result = await completeCompanySetup(user, parsed.data)
   if (!result.ok) return { formError: result.error.message }
 
   revalidatePath('/', 'layout')

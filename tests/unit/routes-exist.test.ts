@@ -1,7 +1,8 @@
 import { readdirSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { navFor } from '@/config/nav'
+import { navFor, searchActionFor } from '@/config/nav'
+import { canAccess, routeGroupFor } from '@/lib/auth/roles'
 
 const APP_DIR = join(process.cwd(), 'src', 'app')
 
@@ -85,5 +86,25 @@ describe('configured routes resolve to real pages', () => {
 
   it('serves the public job board linked from the landing page and footer', () => {
     expect(routeExists('/jobs-public')).toBe(true)
+  })
+
+  // Every job card wraps its title in a link to the detail route. A board of
+  // twelve roles whose titles all 404 is worse than no board.
+  it('serves the job detail route both boards link every card to', () => {
+    expect(routeExists('/jobs-public/some-job-id'), '/jobs-public/[id] has no page').toBe(true)
+    expect(routeExists('/jobs/some-job-id'), '/jobs/[id] has no page').toBe(true)
+  })
+
+  // The app shell renders one search form for every role. Pointing it at a group
+  // a role cannot enter discards their query and bounces them home.
+  it('points the shell search at a route every signed-in role can reach', () => {
+    for (const role of ['CANDIDATE', 'EMPLOYER', 'ADMIN'] as const) {
+      const target = searchActionFor(role)
+      expect(routeExists(target), `${role} search target ${target} has no page`).toBe(true)
+      expect(
+        canAccess(role, routeGroupFor(target)),
+        `${role} search posts to ${target}, which its own guard refuses`,
+      ).toBe(true)
+    }
   })
 })

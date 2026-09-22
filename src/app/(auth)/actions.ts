@@ -19,6 +19,12 @@ export type AuthFormState = {
   fieldErrors?: Record<string, string[]>
   formError?: string
   values?: { name?: string; email?: string; role?: string }
+  /**
+   * Set when the account was created but Supabase issued no session because the
+   * project requires email confirmation. The form swaps to a "check your inbox"
+   * panel; redirecting instead would land on a guard that finds no session.
+   */
+  confirmationSentTo?: string
 }
 
 function fieldErrorsFrom(issues: { path: PropertyKey[]; message: string }[]) {
@@ -54,6 +60,10 @@ export async function signupAction(
       formError: result.error.fieldErrors ? undefined : result.error.message,
       values: echo,
     }
+  }
+
+  if (result.value.needsEmailConfirmation) {
+    return { confirmationSentTo: parsed.data.email }
   }
 
   revalidatePath('/', 'layout')

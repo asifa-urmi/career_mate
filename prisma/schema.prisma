@@ -333,9 +333,12 @@ model Job {
   applications Application[]
   savedBy      SavedJob[]
 
-  @@index([status, category])
+  // The hot predicate for every public listing is status + moderation, ordered
+  // by publishedAt. An index on status + category alone omits moderation and so
+  // cannot serve it.
+  @@index([status, moderation, publishedAt])
+  @@index([status, moderation, category])
   @@index([companyId])
-  @@index([publishedAt])
 }
 
 // ============================================================================

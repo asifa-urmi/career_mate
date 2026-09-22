@@ -30,12 +30,21 @@ export const PROFILE_SIGNALS: readonly {
   { label: 'A CV', href: '/resume', met: (p) => p.counts.resumes > 0 },
 ]
 
-/** 0–100, every signal weighted equally. */
-export function profileCompleteness(profile: ProfileForCompleteness): number {
+/**
+ * 0–100, every signal weighted equally.
+ *
+ * A null profile means there is no candidate profile row at all — an admin, who
+ * `canAccess` admits to /dashboard, has none. That is zero met signals, not an
+ * absence of signals, so the dashboard cannot report 0% and "every section is
+ * filled in" at once.
+ */
+export function profileCompleteness(profile: ProfileForCompleteness | null): number {
+  if (!profile) return 0
   const met = PROFILE_SIGNALS.filter((signal) => signal.met(profile)).length
   return Math.round((met / PROFILE_SIGNALS.length) * 100)
 }
 
-export function missingProfileSignals(profile: ProfileForCompleteness) {
+export function missingProfileSignals(profile: ProfileForCompleteness | null) {
+  if (!profile) return PROFILE_SIGNALS
   return PROFILE_SIGNALS.filter((signal) => !signal.met(profile))
 }

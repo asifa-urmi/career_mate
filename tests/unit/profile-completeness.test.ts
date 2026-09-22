@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { PROFILE_SIGNALS, profileCompleteness } from '@/lib/profile/completeness'
+import {
+  missingProfileSignals,
+  PROFILE_SIGNALS,
+  profileCompleteness,
+} from '@/lib/profile/completeness'
 
 const empty = {
   headline: null,
@@ -63,5 +67,30 @@ describe('profileCompleteness', () => {
     const missing = PROFILE_SIGNALS.filter((s) => !s.met(empty)).map((s) => s.label)
     expect(missing).toHaveLength(PROFILE_SIGNALS.length)
     expect(missing).toContain('Headline')
+  })
+})
+
+describe('missingProfileSignals', () => {
+  it('lists every signal for a profile with nothing filled in', () => {
+    expect(missingProfileSignals(empty)).toHaveLength(PROFILE_SIGNALS.length)
+  })
+
+  it('lists nothing for a complete profile', () => {
+    expect(missingProfileSignals(full)).toHaveLength(0)
+  })
+
+  // An ADMIN is admitted to /dashboard by canAccess but has no CandidateProfile.
+  // Returning an empty missing-list for an absent profile made the dashboard
+  // show "0%" and "Every section is filled in" at the same time.
+  it('lists every signal when there is no candidate profile at all', () => {
+    expect(missingProfileSignals(null)).toHaveLength(PROFILE_SIGNALS.length)
+    expect(profileCompleteness(null)).toBe(0)
+  })
+
+  it('gives every missing signal somewhere to go', () => {
+    for (const signal of missingProfileSignals(empty)) {
+      expect(signal.href.startsWith('/')).toBe(true)
+      expect(signal.label.length).toBeGreaterThan(0)
+    }
   })
 })

@@ -27,6 +27,6 @@ export function onboardingPathFor(role: Role): string {
 
 export async function requireOnboarded(): Promise<SessionUser> {
   const user = await requireUser()
-  if (!user.onboardedAt) redirect(onboardingPathFor(user.role))
+  if (!user.onboarded) redirect(onboardingPathFor(user.role))
   return user
 }
