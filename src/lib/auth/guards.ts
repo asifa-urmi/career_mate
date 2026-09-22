@@ -2,7 +2,6 @@ import type { Role } from '@prisma/client'
 import { redirect } from 'next/navigation'
 import { getCurrentUser, type SessionUser } from '@/lib/auth/session'
 import { homePathFor } from '@/lib/auth/roles'
-import { dynamicRoute } from '@/lib/routes'
 
 /**
  * Guards redirect rather than throw. An expired cookie mid-form-submit therefore
@@ -10,14 +9,14 @@ import { dynamicRoute } from '@/lib/routes'
  */
 export async function requireUser(): Promise<SessionUser> {
   const user = await getCurrentUser()
-  if (!user) redirect(dynamicRoute('/login'))
+  if (!user) redirect('/login')
   return user
 }
 
 export async function requireRole(role: Role): Promise<SessionUser> {
   const user = await requireUser()
   // Admins are deliberately allowed through every role gate.
-  if (user.role !== role && user.role !== 'ADMIN') redirect(dynamicRoute(homePathFor(user.role)))
+  if (user.role !== role && user.role !== 'ADMIN') redirect(homePathFor(user.role))
   return user
 }
 
@@ -28,6 +27,6 @@ export function onboardingPathFor(role: Role): string {
 
 export async function requireOnboarded(): Promise<SessionUser> {
   const user = await requireUser()
-  if (!user.onboardedAt) redirect(dynamicRoute(onboardingPathFor(user.role)))
+  if (!user.onboardedAt) redirect(onboardingPathFor(user.role))
   return user
 }
