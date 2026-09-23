@@ -30,53 +30,83 @@ for (const file of FILES) {
   }
 }
 
+/** The JSX element a position in the source sits inside, by its opening tag. */
+function enclosingComponent(source: string, index: number): string | null {
+  const before = source.slice(0, index)
+  const opens = [...before.matchAll(/<([A-Z]\w*)/g)]
+  return opens.length ? (opens[opens.length - 1]?.[1] ?? null) : null
+}
+
 /**
  * A server component cannot hand a function to a client component.
  *
- * React has to serialise the props that cross that boundary, and a function does
- * not serialise. The whole render fails — not the one component, the route — and
- * in production the reason is replaced by a digest, so the page returns 500 with
- * "Something went wrong" and nothing that names the cause.
+ * React serialises the props that cross that boundary, and a function does not
+ * serialise. The whole render fails — not the one component, the route — and in
+ * production the reason is replaced by a digest, so the page returns 500 with
+ * "Something went wrong" and a number that means nothing without the server log.
  *
- * `/messages` shipped like this for a whole phase. The fix that caused it was
- * itself correct — the shared inbox needed each side to say where its own "View
- * role" link goes — but it said it with a function. A string the client
- * component builds the href from crosses the boundary; a function never can.
+ * Both shapes below shipped at once and took a page down each. Neither the build
+ * nor the typechecker sees them, and a test that renders the component in plain
+ * React does not either, because plain React accepts a function prop happily.
+ * Only the server boundary rejects it.
  *
- * Server actions are the exception and are allowed: `'use server'` is what makes
- * a function referenceable across the boundary. They are passed by name, so the
- * arrow-function form below is what this looks for.
+ * Server actions are the exception: `'use server'` is what makes a function
+ * referenceable across the boundary, and they are passed by name rather than as
+ * a literal, so neither check below touches them.
  */
 describe('the server/client props boundary', () => {
   it('finds the client components', () => {
     expect(CLIENT_COMPONENTS.size).toBeGreaterThan(10)
   })
 
-  it('has no server component passing a function to a client component', () => {
+  // `jobHrefFor={(id) => `/jobs/${id}`}` — the one that broke /messages.
+  it('has no server component passing a function as an attribute', () => {
     const offenders: string[] = []
 
     for (const file of FILES) {
       if (isClient(file.source)) continue
 
-      for (const name of CLIENT_COMPONENTS) {
-        // The whole JSX element, from its opening tag to the first `>` that
-        // closes it, so a prop is only attributed to the element it is on.
-        const element = new RegExp(`<${name}\\b[^>]*?/?>`, 'gs')
-
-        for (const match of file.source.matchAll(element)) {
-          const tag = match[0]
-          const fnProp = /(\w+)=\{\s*(?:async\s*)?\(?[\w\s,{}]*\)?\s*=>/.exec(tag)
-
-          if (fnProp) {
-            offenders.push(`${file.rel}: <${name} ${fnProp[1]}={...} />`)
-          }
+      for (const match of file.source.matchAll(/(\w+)=\{\s*(?:async\s*)?\([\w\s,{}]*\)\s*=>/g)) {
+        const owner = enclosingComponent(file.source, match.index)
+        if (owner && CLIENT_COMPONENTS.has(owner)) {
+          offenders.push(`${file.rel}: <${owner} ${match[1]}={...} />`)
         }
       }
     }
 
     expect(
       offenders,
-      `functions crossing into a client component:\n${offenders.join('\n')}`,
+      `functions crossing into a client component: ${offenders.join(', ')}`,
+    ).toEqual([])
+  })
+
+  /**
+   * `children` is a prop like any other and crosses the same boundary.
+   *
+   * A render prop — `<Section>{(state, values) => ...}</Section>` — is a
+   * function passed as `children`, so it fails exactly as an attribute would. It
+   * looks nothing like one in the source, which is why it outlived the first
+   * version of this test and took `/profile` down on its own.
+   */
+  it('has no server component passing a function as children', () => {
+    const offenders: string[] = []
+
+    for (const file of FILES) {
+      if (isClient(file.source)) continue
+
+      // A render prop is the first thing inside an element: a newline, then
+      // `{(` — as opposed to an attribute, which sits before the closing `>`.
+      for (const match of file.source.matchAll(/\n\s*\{\s*\([\w\s,{}]*\)\s*=>/g)) {
+        const owner = enclosingComponent(file.source, match.index)
+        if (owner && CLIENT_COMPONENTS.has(owner)) {
+          offenders.push(`${file.rel}: <${owner}>{(...) => ...}</${owner}>`)
+        }
+      }
+    }
+
+    expect(
+      offenders,
+      `render props crossing into a client component: ${offenders.join(', ')}`,
     ).toEqual([])
   })
 })

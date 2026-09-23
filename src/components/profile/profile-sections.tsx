@@ -7,7 +7,7 @@ import { EXPERIENCE_LEVELS } from '@/config/constants'
 import type { ProfileFormState } from '@/app/(candidate)/profile/actions'
 import { deleteEntryAction } from '@/app/(candidate)/profile/actions'
 
-type Action = (state: ProfileFormState, formData: FormData) => Promise<ProfileFormState>
+export type Action = (state: ProfileFormState, formData: FormData) => Promise<ProfileFormState>
 
 const SECTOR_OPTIONS = CATEGORIES.map((c) => ({ value: c.value as string, label: c.label }))
 

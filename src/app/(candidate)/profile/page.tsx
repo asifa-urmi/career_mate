@@ -3,14 +3,12 @@ import Link from 'next/link'
 import { requireGroup } from '@/lib/auth/require-group'
 import { PageHead } from '@/components/layout'
 import { Badge, Card, CardTitle, Progress, SkillTag } from '@/components/ui'
+import { BasicsSection, SkillsSection } from '@/components/profile/profile-sections'
 import {
-  BasicsSection,
-  EntrySection,
-  Field,
-  Input,
-  SkillsSection,
-  Textarea,
-} from '@/components/profile/profile-sections'
+  EducationSection,
+  ExperienceSection,
+  LinkSection,
+} from '@/components/profile/entry-forms'
 import { candidateProfileIdFor } from '@/lib/db/repositories/saved-job.repository'
 import { getCandidateProfile } from '@/lib/db/repositories/candidate.repository'
 import { missingProfileSignals, profileCompleteness } from '@/lib/profile/completeness'
@@ -107,10 +105,7 @@ export default async function ProfilePage() {
             }}
           />
 
-          <EntrySection
-            title="Work experience"
-            addLabel="+ Add a role"
-            kind="experience"
+          <ExperienceSection
             action={saveExperienceAction}
             entries={(profile?.experiences ?? []).map((e) => ({
               id: e.id,
@@ -126,68 +121,9 @@ export default async function ProfilePage() {
                 description: e.description ?? '',
               },
             }))}
-          >
-            {(state, v) => (
-              <>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Job title" htmlFor="title" error={state.fieldErrors?.title} required>
-                    <Input
-                      id="title"
-                      name="title"
-                      defaultValue={String(v.title ?? '')}
-                      placeholder="Accounts Officer"
-                    />
-                  </Field>
-                  <Field label="Company" htmlFor="company" error={state.fieldErrors?.company} required>
-                    <Input
-                      id="company"
-                      name="company"
-                      defaultValue={String(v.company ?? '')}
-                      placeholder="Meridian Group"
-                    />
-                  </Field>
-                  <Field label="Started" htmlFor="startDate" error={state.fieldErrors?.startDate} required>
-                    <Input
-                      id="startDate"
-                      name="startDate"
-                      type="date"
-                      defaultValue={String(v.startDate ?? '')}
-                    />
-                  </Field>
-                  <Field label="Ended" htmlFor="endDate" error={state.fieldErrors?.endDate}>
-                    <Input
-                      id="endDate"
-                      name="endDate"
-                      type="date"
-                      defaultValue={String(v.endDate ?? '')}
-                    />
-                  </Field>
-                </div>
-                <label className="flex items-center gap-2 text-[13px]">
-                  <input
-                    type="checkbox"
-                    name="isCurrent"
-                    defaultChecked={Boolean(v.isCurrent)}
-                    className="size-4 accent-[var(--color-blue)]"
-                  />
-                  I still work here
-                </label>
-                <Field label="What you did" htmlFor="description" error={state.fieldErrors?.description}>
-                  <Textarea
-                    id="description"
-                    name="description"
-                    rows={3}
-                    defaultValue={String(v.description ?? '')}
-                  />
-                </Field>
-              </>
-            )}
-          </EntrySection>
+          />
 
-          <EntrySection
-            title="Education"
-            addLabel="+ Add education"
-            kind="education"
+          <EducationSection
             action={saveEducationAction}
             entries={(profile?.educations ?? []).map((e) => ({
               id: e.id,
@@ -201,56 +137,11 @@ export default async function ProfilePage() {
                 endDate: dateInput(e.endDate),
               },
             }))}
-          >
-            {(state, v) => (
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Degree" htmlFor="degree" error={state.fieldErrors?.degree} required>
-                  <Input
-                    id="degree"
-                    name="degree"
-                    defaultValue={String(v.degree ?? '')}
-                    placeholder="BBA in Accounting"
-                  />
-                </Field>
-                <Field
-                  label="Institution"
-                  htmlFor="institution"
-                  error={state.fieldErrors?.institution}
-                  required
-                >
-                  <Input
-                    id="institution"
-                    name="institution"
-                    defaultValue={String(v.institution ?? '')}
-                    placeholder="Dhaka University"
-                  />
-                </Field>
-                <Field label="Started" htmlFor="startDate" error={state.fieldErrors?.startDate}>
-                  <Input
-                    id="startDate"
-                    name="startDate"
-                    type="date"
-                    defaultValue={String(v.startDate ?? '')}
-                  />
-                </Field>
-                <Field label="Finished" htmlFor="endDate" error={state.fieldErrors?.endDate}>
-                  <Input
-                    id="endDate"
-                    name="endDate"
-                    type="date"
-                    defaultValue={String(v.endDate ?? '')}
-                  />
-                </Field>
-              </div>
-            )}
-          </EntrySection>
+          />
 
           <SkillsSection action={saveSkillsAction} skills={profile?.skills ?? []} />
 
-          <EntrySection
-            title="Links"
-            addLabel="+ Add a link"
-            kind="link"
+          <LinkSection
             action={saveLinkAction}
             entries={(profile?.links ?? []).map((l) => ({
               id: l.id,
@@ -258,28 +149,7 @@ export default async function ProfilePage() {
               secondary: l.url,
               values: { label: l.label, url: l.url },
             }))}
-          >
-            {(state, v) => (
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Name" htmlFor="label" error={state.fieldErrors?.label} required>
-                  <Input
-                    id="label"
-                    name="label"
-                    defaultValue={String(v.label ?? '')}
-                    placeholder="Portfolio"
-                  />
-                </Field>
-                <Field label="Address" htmlFor="url" error={state.fieldErrors?.url} required>
-                  <Input
-                    id="url"
-                    name="url"
-                    defaultValue={String(v.url ?? '')}
-                    placeholder="https://example.com"
-                  />
-                </Field>
-              </div>
-            )}
-          </EntrySection>
+          />
         </div>
 
         <div className="grid content-start gap-4.5">
