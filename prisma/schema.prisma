@@ -1,0 +1,503 @@
+// CareerMate database schema.
+//
+// Covers all four delivery phases up front so later phases add features rather
+// than migrations that reshape live tables.
+//
+// `url` is Supabase's pooled (pgBouncer) connection, which serverless functions
+// must use; `directUrl` is the direct connection, which migrations require.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================================
+// Enums
+// ============================================================================
+
+enum Role {
+  CANDIDATE
+  EMPLOYER
+  ADMIN
+}
+
+enum JobCategory {
+  TECHNOLOGY
+  MARKETING
+  SALES
+  FINANCE
+  HR
+  DESIGN
+  OPERATIONS
+  CUSTOMER_SUPPORT
+  HEALTHCARE
+  EDUCATION
+  OTHER
+}
+
+enum ExperienceLevel {
+  ENTRY
+  ONE_TO_THREE
+  THREE_TO_FIVE
+  FIVE_PLUS
+}
+
+enum WorkMode {
+  ANY
+  ONSITE
+  HYBRID
+  REMOTE
+}
+
+enum JobType {
+  FULL_TIME
+  PART_TIME
+  INTERNSHIP
+  CONTRACT
+}
+
+enum JobStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum ModerationStatus {
+  PENDING
+  APPROVED
+  FLAGGED
+  REMOVED
+}
+
+enum ApplicationStage {
+  APPLIED
+  SCREENING
+  INTERVIEW
+  ASSESSMENT
+  OFFER
+  REJECTED
+  WITHDRAWN
+}
+
+enum NotificationType {
+  APPLICATION_UPDATE
+  NEW_MESSAGE
+  JOB_MATCH
+  SYSTEM
+}
+
+enum ReportTargetType {
+  JOB
+  USER
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWING
+  RESOLVED
+  DISMISSED
+}
+
+// ============================================================================
+// Identity
+// ============================================================================
+
+/// One row per Supabase auth user. `id` IS the Supabase auth uid — that
+/// identity is the join between the two systems, so it is never generated here.
+/// `role` lives in this table rather than the JWT so a user cannot mint
+/// themselves a higher role by editing a token.
+model User {
+  id          String    @id
+  email       String    @unique
+  name        String
+  role        Role      @default(CANDIDATE)
+  avatarUrl   String?
+  onboardedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  candidateProfile CandidateProfile?
+  employerProfile  EmployerProfile?
+  postedJobs       Job[]                     @relation("JobPostedBy")
+  notifications    Notification[]
+  sentMessages     Message[]
+  conversations    ConversationParticipant[]
+  reportsFiled     Report[]                  @relation("ReportReporter")
+  reportsResolved  Report[]                  @relation("ReportResolver")
+  stageChanges     ApplicationEvent[]        @relation("EventActor")
+  aiInteractions   AiInteraction[]
+
+  @@index([role])
+}
+
+// ============================================================================
+// Candidate side
+// ============================================================================
+
+model CandidateProfile {
+  id              String          @id @default(cuid())
+  userId          String          @unique
+  headline        String?
+  location        String?
+  bio             String?
+  experienceLevel ExperienceLevel @default(ENTRY)
+  primarySector   JobCategory     @default(OTHER)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  preference     JobPreference?
+  experiences    Experience[]
+  educations     Education[]
+  skills         Skill[]
+  certifications Certification[]
+  links          Link[]
+  resumes        Resume[]
+  applications   Application[]
+  savedJobs      SavedJob[]
+
+  @@index([primarySector])
+}
+
+model JobPreference {
+  id                 String   @id @default(cuid())
+  candidateProfileId String   @unique
+  targetRole         String?
+  preferredLocation  String?
+  minSalaryBdt       Int?
+  workMode           WorkMode @default(ANY)
+  jobType            JobType  @default(FULL_TIME)
+
+  candidateProfile CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+}
+
+model Experience {
+  id                 String    @id @default(cuid())
+  candidateProfileId String
+  title              String
+  company            String
+  location           String?
+  startDate          DateTime
+  endDate            DateTime?
+  isCurrent          Boolean   @default(false)
+  description        String?
+  order              Int       @default(0)
+
+  candidateProfile CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+
+  @@index([candidateProfileId])
+}
+
+model Education {
+  id                 String    @id @default(cuid())
+  candidateProfileId String
+  degree             String
+  institution        String
+  fieldOfStudy       String?
+  startDate          DateTime?
+  endDate            DateTime?
+  grade              String?
+  order              Int       @default(0)
+
+  candidateProfile CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+
+  @@index([candidateProfileId])
+}
+
+model Skill {
+  id                 String @id @default(cuid())
+  candidateProfileId String
+  name               String
+
+  candidateProfile CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([candidateProfileId, name])
+  @@index([name])
+}
+
+model Certification {
+  id                 String    @id @default(cuid())
+  candidateProfileId String
+  name               String
+  issuer             String?
+  issuedAt           DateTime?
+  credentialUrl      String?
+  order              Int       @default(0)
+
+  candidateProfile CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+
+  @@index([candidateProfileId])
+}
+
+model Link {
+  id                 String @id @default(cuid())
+  candidateProfileId String
+  label              String
+  url                String
+  order              Int    @default(0)
+
+  candidateProfile CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+
+  @@index([candidateProfileId])
+}
+
+/// A CV version. `storagePath` points into the private Supabase Storage bucket;
+/// the file is only ever served through a short-lived signed URL minted after an
+/// authorization check, never by exposing this path.
+model Resume {
+  id                 String   @id @default(cuid())
+  candidateProfileId String
+  label              String
+  storagePath        String   @unique
+  fileName           String
+  mimeType           String
+  sizeBytes          Int
+  extractedText      String?
+  isPrimary          Boolean  @default(false)
+  version            Int      @default(1)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  candidateProfile CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+  applications     Application[]
+
+  @@index([candidateProfileId])
+}
+
+// ============================================================================
+// Employer side
+// ============================================================================
+
+model Company {
+  id           String      @id @default(cuid())
+  name         String      @unique
+  logoInitials String
+  sector       JobCategory @default(OTHER)
+  size         String?
+  website      String?
+  about        String?
+  location     String?
+  verified     Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  jobs      Job[]
+  employers EmployerProfile[]
+}
+
+model EmployerProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  companyId String
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+}
+
+model Job {
+  id              String           @id @default(cuid())
+  companyId       String
+  postedById      String
+  title           String
+  category        JobCategory
+  location        String
+  workMode        WorkMode         @default(ONSITE)
+  jobType         JobType          @default(FULL_TIME)
+  salaryMinBdt    Int?
+  salaryMaxBdt    Int?
+  salaryNote      String?
+  summary         String
+  responsibilities String[]
+  requirements    String[]
+  requiredSkills  String[]
+  preferredSkills String[]
+  status          JobStatus        @default(DRAFT)
+  moderation      ModerationStatus @default(PENDING)
+  publishedAt     DateTime?
+  closesAt        DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  postedBy     User          @relation("JobPostedBy", fields: [postedById], references: [id])
+  applications Application[]
+  savedBy      SavedJob[]
+
+  // The hot predicate for every public listing is status + moderation, ordered
+  // by publishedAt. An index on status + category alone omits moderation and so
+  // cannot serve it.
+  @@index([status, moderation, publishedAt])
+  @@index([status, moderation, category])
+  @@index([companyId])
+}
+
+// ============================================================================
+// Applications
+// ============================================================================
+
+/// The unique constraint is what makes double-applying impossible. It lives in
+/// the database, not the service layer, so a race between two concurrent
+/// submissions cannot slip a second row through.
+model Application {
+  id                 String           @id @default(cuid())
+  candidateProfileId String
+  jobId              String
+  resumeId           String?
+  coverLetter        String?
+  screeningAnswers   Json             @default("{}")
+  consentedAt        DateTime
+  stage              ApplicationStage @default(APPLIED)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  candidateProfile CandidateProfile   @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+  job              Job                @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  resume           Resume?            @relation(fields: [resumeId], references: [id], onDelete: SetNull)
+  events           ApplicationEvent[]
+
+  @@unique([candidateProfileId, jobId])
+  @@index([jobId, stage])
+  @@index([candidateProfileId])
+}
+
+/// Every stage change writes one of these. The tracker renders this history, so
+/// the current stage is never the only record of what happened.
+model ApplicationEvent {
+  id            String            @id @default(cuid())
+  applicationId String
+  fromStage     ApplicationStage?
+  toStage       ApplicationStage
+  note          String?
+  actorId       String?
+  createdAt     DateTime          @default(now())
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  actor       User?       @relation("EventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([applicationId])
+}
+
+model SavedJob {
+  id                 String   @id @default(cuid())
+  candidateProfileId String
+  jobId              String
+  createdAt          DateTime @default(now())
+
+  candidateProfile CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+  job              Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([candidateProfileId, jobId])
+}
+
+// ============================================================================
+// Messaging and notifications
+// ============================================================================
+
+model Conversation {
+  id        String   @id @default(cuid())
+  subject   String?
+  jobId     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([updatedAt])
+}
+
+model ConversationParticipant {
+  id             String    @id @default(cuid())
+  conversationId String
+  userId         String
+  lastReadAt     DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id             String    @id @default(cuid())
+  conversationId String
+  senderId       String
+  body           String
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  href      String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}
+
+// ============================================================================
+// Moderation and AI observability
+// ============================================================================
+
+model Report {
+  id             String           @id @default(cuid())
+  reporterId     String
+  targetType     ReportTargetType
+  targetId       String
+  reason         String
+  detail         String?
+  status         ReportStatus     @default(OPEN)
+  resolvedById   String?
+  resolutionNote String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  reporter   User  @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  resolvedBy User? @relation("ReportResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([targetType, targetId])
+}
+
+/// One row per AI request. `providerId` records which provider actually served
+/// it and `attempts` records the ones that failed first, which is what makes
+/// free-tier failover auditable instead of invisible.
+model AiInteraction {
+  id               String   @id @default(cuid())
+  userId           String?
+  feature          String
+  providerId       String
+  attempts         Json     @default("[]")
+  promptTokens     Int?
+  completionTokens Int?
+  latencyMs        Int
+  createdAt        DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([feature, createdAt])
+  @@index([providerId])
+}

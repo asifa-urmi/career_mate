@@ -1,0 +1,260 @@
+@import 'tailwindcss';
+
+/* ============================================================================
+   Design tokens — lifted verbatim from legacy/styles.css :root.
+   These are the single source of truth for the CareerMate look.
+   ========================================================================== */
+@theme {
+  --color-navy: #0a1533;
+  --color-navy-2: #101f47;
+  --color-blue: #2f6bff;
+  --color-blue-2: #5d8bff;
+  --color-blue-ink: #255be0;
+  --color-blue-wash: #edf3ff;
+  --color-mint: #3ed6b2;
+  --color-mint-soft: #dffaf3;
+  --color-mint-ink: #14705f;
+  --color-bg: #f5f7fb;
+  --color-surface: #ffffff;
+  --color-text: #111a33;
+  --color-muted: #69738c;
+  --color-line: #e5e9f2;
+  --color-danger: #ff5f72;
+  --color-warning: #f9b94f;
+
+  --radius-card: 18px;
+  --radius-field: 12px;
+
+  --shadow-card: 0 14px 45px rgb(17 36 84 / 0.1);
+  --shadow-card-sm: 0 6px 18px rgb(17 36 84 / 0.08);
+  --shadow-primary: 0 8px 20px rgb(47 107 255 / 0.23);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ============================================================================
+   Base
+   ========================================================================== */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    overflow-x: hidden;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  /* Visible focus for keyboard users on every interactive element. The
+     prototype had none, which made it unusable without a mouse. */
+  :focus-visible {
+    outline: 2px solid var(--color-blue);
+    outline-offset: 2px;
+  }
+}
+
+/* ============================================================================
+   Signature elements.
+
+   These stay hand-written CSS rather than utility classes: each depends on a
+   gradient, a conic-gradient, a pseudo-element or a keyframe that reads far
+   more clearly here than as a utility string. They are the prototype's visual
+   identity, so they are ported shape for shape.
+   ========================================================================== */
+
+/* Score ring — conic-gradient donut driven by a --score custom property. */
+.score-ring {
+  --score: 0;
+  display: grid;
+  place-items: center;
+  position: relative;
+  border-radius: 50%;
+  background: conic-gradient(var(--color-mint) calc(var(--score) * 1%), #e8edf5 0);
+}
+.score-ring::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: var(--color-surface);
+}
+.score-ring > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Large resume score dial — same idea, blue, thicker inset. */
+.resume-score {
+  --score: 0;
+  width: 140px;
+  height: 140px;
+  display: grid;
+  place-items: center;
+  position: relative;
+  margin: 10px auto 18px;
+  border-radius: 50%;
+  background: conic-gradient(var(--color-blue) calc(var(--score) * 1%), #e7ecf5 0);
+}
+.resume-score::after {
+  content: '';
+  position: absolute;
+  inset: 11px;
+  border-radius: 50%;
+  background: var(--color-surface);
+}
+.resume-score > * {
+  position: relative;
+  z-index: 2;
+}
+
+/* AI banner — navy gradient panel with a ghost sparkle bleeding off the top. */
+.ai-banner {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  background: linear-gradient(135deg, var(--color-navy), #19397c);
+  color: #fff;
+}
+.ai-banner::after {
+  content: '✦';
+  position: absolute;
+  right: 28px;
+  top: 6px;
+  font-size: 100px;
+  line-height: 1;
+  color: rgb(255 255 255 / 0.06);
+  pointer-events: none;
+}
+
+/* Profile cover — three-stop brand gradient. */
+.profile-cover {
+  background: linear-gradient(120deg, var(--color-navy), var(--color-blue), var(--color-mint));
+}
+
+/* Sidebar active link — mint inset bar on the left edge. */
+.side-link-active {
+  box-shadow: inset 3px 0 0 var(--color-mint);
+}
+
+/* Employer sidebar accent. */
+.employer-accent {
+  background: linear-gradient(135deg, #0a1533, #183b72);
+}
+
+/* Dashed upload target. */
+.upload-box {
+  border: 2px dashed #cdd6e8;
+  background: #fbfcff;
+}
+.upload-box[data-dragging='true'] {
+  border-color: var(--color-blue);
+  background: var(--color-blue-wash);
+}
+
+/* Analytics bars — grow in from the baseline on mount. */
+.bar {
+  transform-origin: bottom;
+  border-radius: 8px 8px 2px 2px;
+  background: linear-gradient(180deg, var(--color-blue), #9ab5ff);
+  animation: bar-grow 1s ease both;
+}
+@keyframes bar-grow {
+  from {
+    transform: scaleY(0.05);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+/* Progress meter with the brand gradient fill. */
+.progress-fill {
+  background: linear-gradient(90deg, var(--color-blue), var(--color-mint));
+}
+
+/* Avatar monogram. */
+.avatar-gradient {
+  background: linear-gradient(145deg, var(--color-blue), var(--color-mint));
+}
+
+/* Toggle switch. */
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.12);
+  transition: left 0.2s ease;
+}
+.switch[data-on='true']::after {
+  left: 23px;
+}
+
+/* Stepper connector — mint once the step behind it is done. */
+.step-line {
+  width: 90px;
+  height: 2px;
+  background: #dbe1ec;
+}
+.step-line[data-done='true'] {
+  background: var(--color-mint);
+}
+
+/* Mint pull-quote used for AI suggestions and guardrail notes. */
+.suggestion {
+  border-left: 3px solid var(--color-mint);
+  background: #f4fffc;
+}
+
+/* Live dot with a soft mint halo. */
+.pulse-dot {
+  box-shadow: 0 0 0 4px rgb(62 214 178 / 0.16);
+}
+
+/* Chat bubble tails are flat in the prototype; the gradient backdrop is not. */
+.chat-scroll {
+  background: linear-gradient(#fff, #fbfcff);
+}
+
+/* Onboarding backdrop. */
+.onboarding-bg {
+  background: linear-gradient(180deg, #f7f9ff, #eef3ff);
+}
+
+/* Coach welcome panel. */
+.coach-welcome {
+  background: linear-gradient(145deg, #eef3ff, #f8fbff);
+}
+
+/* Reduce motion for people who ask for it. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
