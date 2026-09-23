@@ -63,3 +63,24 @@ describe('deny-all RLS migration', () => {
     expect(rls).not.toMatch(/CREATE POLICY/i)
   })
 })
+
+describe('search index migration', () => {
+  const search = migrationSql('search_indexes')
+
+  // ILIKE '%term%' cannot use a btree index, so without these every search is a
+  // sequential scan. Imperceptible at twelve rows, unusable at fifty thousand.
+  it('indexes the three columns the text search actually scans', () => {
+    expect(search).toMatch(/GIN \("title" gin_trgm_ops\)/)
+    expect(search).toMatch(/GIN \("summary" gin_trgm_ops\)/)
+    expect(search).toMatch(/GIN \("name" gin_trgm_ops\)/)
+  })
+
+  it('indexes both skill arrays, which hasSome queries', () => {
+    expect(search).toMatch(/GIN \("requiredSkills"\)/)
+    expect(search).toMatch(/GIN \("preferredSkills"\)/)
+  })
+
+  it('enables pg_trgm idempotently, since the extension may already exist', () => {
+    expect(search).toContain('CREATE EXTENSION IF NOT EXISTS pg_trgm')
+  })
+})

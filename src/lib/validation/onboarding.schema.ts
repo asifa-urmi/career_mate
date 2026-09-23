@@ -1,18 +1,16 @@
 import { z } from 'zod'
+import type { JobCategory } from '@prisma/client'
+import { CATEGORIES } from '@/config/categories'
 
-const JOB_CATEGORY = [
-  'TECHNOLOGY',
-  'MARKETING',
-  'SALES',
-  'FINANCE',
-  'HR',
-  'DESIGN',
-  'OPERATIONS',
-  'CUSTOMER_SUPPORT',
-  'HEALTHCARE',
-  'EDUCATION',
-  'OTHER',
-] as const
+/**
+ * Derived from CATEGORIES rather than hand-copied, so a category added to the
+ * Prisma enum and the UI list cannot be left silently unsubmittable.
+ * `tests/unit/category-sources.test.ts` asserts all three agree.
+ */
+export const JOB_CATEGORY_VALUES = CATEGORIES.map((c) => c.value) as [
+  JobCategory,
+  ...JobCategory[],
+]
 
 /** A sane ceiling. Anything above it is a typo or an attempt to overflow the column. */
 const MAX_SALARY_BDT = 100_000_000
@@ -49,7 +47,7 @@ const optionalUrl = z
   .optional()
 
 export const onboardingSchema = z.object({
-  primarySector: z.enum(JOB_CATEGORY, { message: 'Choose the sector you want to work in' }),
+  primarySector: z.enum(JOB_CATEGORY_VALUES, { message: 'Choose the sector you want to work in' }),
   targetRole: optionalText(120),
   experienceLevel: z.enum(['ENTRY', 'ONE_TO_THREE', 'THREE_TO_FIVE', 'FIVE_PLUS'], {
     message: 'Choose your experience level',
@@ -67,7 +65,7 @@ export type OnboardingInput = z.infer<typeof onboardingSchema>
 
 export const companySetupSchema = z.object({
   companyName: z.string().trim().min(2, 'Enter your company name').max(120),
-  sector: z.enum(JOB_CATEGORY, { message: 'Choose your company sector' }),
+  sector: z.enum(JOB_CATEGORY_VALUES, { message: 'Choose your company sector' }),
   size: optionalText(60),
   website: optionalUrl,
   location: optionalText(120),

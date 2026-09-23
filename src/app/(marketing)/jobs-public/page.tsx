@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { JobCategory } from '@prisma/client'
 import { Card, CardTitle, Button, EmptyState } from '@/components/ui'
+import { getCurrentUser } from '@/lib/auth/session'
 import { PublicNav, Footer, PageHead } from '@/components/layout'
 import { JobList } from '@/components/jobs/job-card'
 import { CATEGORIES } from '@/config/categories'
@@ -31,14 +32,15 @@ export default async function PublicJobsPage({
       : undefined
   const search = params.q?.trim() || undefined
 
-  const [jobs, total] = await Promise.all([
+  const [user, jobs, total] = await Promise.all([
+    getCurrentUser(),
     listPublishedJobs({ category, search }),
     countPublishedJobs(),
   ])
 
   return (
     <>
-      <PublicNav />
+      <PublicNav user={user} />
 
       <div className="mx-auto w-[min(1180px,calc(100%-32px))] py-12">
         <PageHead
