@@ -18,6 +18,46 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 const { signUp, signIn } = await import('@/server/services/auth.service')
 
+/**
+ * Supabase sends the confirmation link to the project's Site URL unless the
+ * signup says otherwise. In a fresh project that is localhost, so a deployed
+ * site emailed every new user a link to a machine they do not have.
+ */
+describe('the confirmation link', () => {
+  beforeEach(() => {
+    signUpMock.mockReset()
+    createUserWithRole.mockReset()
+    signUpMock.mockResolvedValue({ data: { user: { id: 'uid-1' }, session: null }, error: null })
+    createUserWithRole.mockResolvedValue({ id: 'uid-1', role: 'CANDIDATE', onboardedAt: null })
+  })
+
+  it('is sent to the callback route on the site the person signed up from', async () => {
+    await signUp({ ...input, origin: 'https://career-mate.vercel.app' })
+
+    expect(signUpMock.mock.calls[0]?.[0]?.options?.emailRedirectTo).toBe(
+      'https://career-mate.vercel.app/auth/callback',
+    )
+  })
+
+  it('carries the name and role through as before', async () => {
+    await signUp({ ...input, origin: 'https://career-mate.vercel.app' })
+
+    expect(signUpMock.mock.calls[0]?.[0]?.options?.data).toEqual({
+      name: 'Rafat',
+      role: 'CANDIDATE',
+    })
+  })
+
+  // Without an origin there is nothing honest to put in the link, and a guessed
+  // one emails people at the wrong site. Supabase's Site URL is the better
+  // fallback, and omitting the option is how you ask for it.
+  it('omits the option rather than guessing when no origin is known', async () => {
+    await signUp(input)
+
+    expect(signUpMock.mock.calls[0]?.[0]?.options?.emailRedirectTo).toBeUndefined()
+  })
+})
+
 const input = {
   name: 'Rafat',
   email: 'a@b.com',

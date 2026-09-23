@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { navFor, searchActionFor } from '@/config/nav'
@@ -160,6 +160,24 @@ describe('configured routes resolve to real pages', () => {
     ]) {
       expect(routeExists(href), href + ' has no page').toBe(true)
     }
+  })
+
+  /**
+   * The route that every link in a Supabase email lands on.
+   *
+   * It is a route handler, not a page, so the page scan above cannot see it.
+   * Without it a confirmation link puts a one-time code in the address bar of
+   * whatever page it reaches, and nothing exchanges it — the account is
+   * confirmed at the provider and the person is still signed out.
+   */
+  it('serves the auth callback, and exchanges the code there', () => {
+    const handler = join(APP_DIR, 'auth', 'callback', 'route.ts')
+
+    expect(existsSync(handler), 'no route handler at /auth/callback').toBe(true)
+
+    const source = readFileSync(handler, 'utf8')
+    expect(source, 'the callback never exchanges the code').toContain('exchangeCodeForSession')
+    expect(source, 'the callback does not handle a GET').toMatch(/export async function GET/)
   })
 
   // Every page the sidebar offers is built, not a placeholder saying it is

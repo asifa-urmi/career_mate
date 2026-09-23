@@ -7,6 +7,7 @@ import { isOnboarded } from '@/lib/auth/session'
 import { appError, validationError } from '@/lib/utils/errors'
 import { err, ok, type Result } from '@/lib/utils/result'
 import type { LoginInput, SignupInput } from '@/lib/validation/auth.schema'
+import { emailRedirectTo } from '@/lib/auth/email-callback'
 
 export type AuthenticatedUser = {
   userId: string
@@ -53,13 +54,28 @@ function mapSignUpError(error: SupabaseAuthError) {
  * is unusable rather than half-working, and a retry completes it — the existing
  * row is detected and reused rather than duplicated.
  */
-export async function signUp(input: SignupInput): Promise<Result<AuthenticatedUser>> {
+/**
+ * `origin` is where the person is signing up from, and it decides where the
+ * confirmation link points.
+ *
+ * Without it Supabase falls back to the project's Site URL, which in a fresh
+ * project is `http://localhost:3000` — so a deployed site emails every new user
+ * a link to a machine they do not have. It is passed in rather than read here
+ * because only the request knows it, and a guess would be worse than the
+ * fallback.
+ */
+export async function signUp(
+  input: SignupInput & { origin?: string },
+): Promise<Result<AuthenticatedUser>> {
   const supabase = await createServerSupabase()
 
   const { data, error } = await supabase.auth.signUp({
     email: input.email,
     password: input.password,
-    options: { data: { name: input.name, role: input.role } },
+    options: {
+      data: { name: input.name, role: input.role },
+      ...(input.origin ? { emailRedirectTo: emailRedirectTo(input.origin) } : {}),
+    },
   })
 
   if (error) return err(mapSignUpError(error))

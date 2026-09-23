@@ -1,5 +1,6 @@
 'use server'
 
+import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { homePathFor } from '@/lib/auth/roles'
@@ -7,6 +8,24 @@ import { onboardingPathFor } from '@/lib/auth/guards'
 import { loginSchema, signupSchema } from '@/lib/validation/auth.schema'
 import { signIn, signUp } from '@/server/services/auth.service'
 import { createServerSupabase } from '@/lib/supabase/server'
+
+/**
+ * The site this request actually arrived at, for the confirmation link.
+ *
+ * Read from the request rather than from configuration, so it is right on
+ * localhost, on a preview deployment and in production without a fourth thing to
+ * set. It is not trusted on its own: Supabase only honours a redirect that is on
+ * the project's allow-list, so a forged Host header cannot send anybody's
+ * confirmation email somewhere else.
+ */
+async function requestOrigin(): Promise<string | undefined> {
+  const head = await headers()
+  const host = head.get('x-forwarded-host') ?? head.get('host')
+  if (!host) return undefined
+
+  const proto = head.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https')
+  return `${proto}://${host}`
+}
 
 /**
  * What a submitted auth form gets back.
@@ -53,7 +72,7 @@ export async function signupAction(
     return { fieldErrors: fieldErrorsFrom(parsed.error.issues), values: echo }
   }
 
-  const result = await signUp(parsed.data)
+  const result = await signUp({ ...parsed.data, origin: await requestOrigin() })
   if (!result.ok) {
     return {
       fieldErrors: result.error.fieldErrors,

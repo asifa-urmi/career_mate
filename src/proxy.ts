@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
 import { decideRoute } from '@/lib/auth/route-decision'
+import { misroutedCodeRedirect } from '@/lib/auth/email-callback'
 
 /**
  * Runs before every matched request (Next 16 renamed this file convention from
@@ -18,6 +19,18 @@ import { decideRoute } from '@/lib/auth/route-decision'
  * decideGroupAccess with the role they already have.
  */
 export async function proxy(request: NextRequest) {
+  // A confirmation code that arrived at the wrong path, handled before anything
+  // else. Supabase falls back to the project's Site URL whenever the redirect it
+  // was given is missing from the allow-list, and that fallback is the site root
+  // — where the landing page renders and drops the code on the floor.
+  const misrouted = misroutedCodeRedirect(
+    request.nextUrl.pathname,
+    request.nextUrl.searchParams,
+  )
+  if (misrouted) {
+    return NextResponse.redirect(new URL(misrouted, request.nextUrl.origin))
+  }
+
   const { response, userId } = await updateSession(request)
 
   if (!userId) {
