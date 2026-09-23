@@ -95,6 +95,14 @@ describe('configured routes resolve to real pages', () => {
     expect(routeExists('/jobs/some-job-id'), '/jobs/[id] has no page').toBe(true)
   })
 
+  // Any route a page links to must exist before that link ships. The P0 review
+  // found twelve job cards all pointing at a detail page nobody had built.
+  it('serves every route the candidate flow links to', () => {
+    for (const href of ['/jobs', '/jobs/some-id', '/saved', '/tracker', '/profile']) {
+      expect(routeExists(href), `${href} has no page`).toBe(true)
+    }
+  })
+
   // The app shell renders one search form for every role. Pointing it at a group
   // a role cannot enter discards their query and bounces them home.
   it('points the shell search at a route every signed-in role can reach', () => {
