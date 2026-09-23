@@ -172,3 +172,30 @@ export async function findPublishedJob(id: string): Promise<JobDetailModel | nul
     companyLocation: job.company.location,
   }
 }
+
+/**
+ * The roles the coach can work on: ones this candidate saved or applied to.
+ *
+ * Deliberately not "any job" — a cover letter for a role they have shown no
+ * interest in is a way to burn quota, and scoping it to their own saved and
+ * applied set keeps the picker short enough to be useful.
+ */
+export async function coachJobOptions(
+  candidateProfileId: string,
+): Promise<{ id: string; label: string }[]> {
+  const jobs = await prisma.job.findMany({
+    where: {
+      status: 'PUBLISHED',
+      moderation: 'APPROVED',
+      OR: [
+        { savedBy: { some: { candidateProfileId } } },
+        { applications: { some: { candidateProfileId } } },
+      ],
+    },
+    orderBy: { publishedAt: 'desc' },
+    take: 25,
+    select: { id: true, title: true, company: { select: { name: true } } },
+  })
+
+  return jobs.map((j) => ({ id: j.id, label: `${j.title} — ${j.company.name}` }))
+}
