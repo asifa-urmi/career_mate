@@ -12,6 +12,7 @@ export function UploadBox({
   disabled = false,
   hint,
   name,
+  inputRef: externalRef,
 }: {
   accept: readonly string[]
   acceptExtensions: string
@@ -20,8 +21,11 @@ export function UploadBox({
   disabled?: boolean
   hint?: string
   name?: string
+  /** Lets a form own the input, so the chosen file is submitted with it. */
+  inputRef?: React.RefObject<HTMLInputElement | null>
 }) {
-  const inputRef = useRef<HTMLInputElement>(null)
+  const ownRef = useRef<HTMLInputElement>(null)
+  const inputRef = externalRef ?? ownRef
   const [dragging, setDragging] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const errorId = useId()

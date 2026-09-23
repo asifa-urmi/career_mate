@@ -1,26 +1,25 @@
 import type { Metadata } from 'next'
 import { requireGroup } from '@/lib/auth/require-group'
-import { ComingSoon } from '@/components/layout/coming-soon'
+import { PageHead } from '@/components/layout'
+import { AiCoach } from '@/components/ai/coach'
+import { candidateProfileIdFor } from '@/lib/db/repositories/saved-job.repository'
+import { coachJobOptions } from '@/lib/db/repositories/job.repository'
 
 export const metadata: Metadata = { title: 'AI Career Coach — CareerMate' }
 export const dynamic = 'force-dynamic'
 
-export default async function Page() {
-  await requireGroup('candidate')
+export default async function AiCoachPage() {
+  const user = await requireGroup('candidate')
+  const profileId = await candidateProfileIdFor(user.id)
+  const jobs = profileId ? await coachJobOptions(profileId) : []
 
   return (
-    <ComingSoon
-      title="AI Career Coach"
-      description="Match explanations, CV help and interview practice."
-      phase="P2"
-      does={[
-        'Why a role matches you, with evidence from your own profile.',
-        'Cover letters and screening answers drafted from facts you provide.',
-        'Sector-specific interview practice with feedback.',
-        'Runs on free AI tiers with automatic failover, so one exhausted quota does not stop it.',
-      ]}
-      backHref="/dashboard"
-      backLabel="Back to dashboard"
-    />
+    <>
+      <PageHead
+        title="AI Career Coach"
+        description="Grounded in your own profile. It will not invent experience you have not listed."
+      />
+      <AiCoach jobs={jobs} />
+    </>
   )
 }

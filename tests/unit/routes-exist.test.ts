@@ -1,4 +1,4 @@
-import { readdirSync, statSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { navFor, searchActionFor } from '@/config/nav'
@@ -33,13 +33,32 @@ function collectRoutes(dir: string, routes: string[] = []): string[] {
       // Private folders — "_internal" — are excluded from routing entirely.
       .filter((s) => !s.startsWith('_'))
 
-    routes.push(`/${segments.join('/')}`.replace(/\/$/, '') || '/')
+    const route = `/${segments.join('/')}`.replace(/\/$/, '') || '/'
+    routes.push(route)
+    ROUTE_FILES.set(route, full)
   }
 
   return routes
 }
 
+/** route -> the page file serving it, so a test can read what that page renders. */
+const ROUTE_FILES = new Map<string, string>()
 const ROUTES = collectRoutes(APP_DIR)
+
+/** The page file serving an href, if one exists. */
+function pageFileFor(href: string): string | null {
+  const wanted = (href.split('?')[0] ?? '').split('/').filter(Boolean)
+
+  for (const route of ROUTES) {
+    const actual = route.split('/').filter(Boolean)
+    if (actual.length !== wanted.length) continue
+    if (actual.every((segment, i) => segment.startsWith('[') || segment === wanted[i])) {
+      return ROUTE_FILES.get(route) ?? null
+    }
+  }
+
+  return null
+}
 
 /** A configured href matches a route, allowing for [id] style segments. */
 function routeExists(href: string): boolean {
@@ -111,8 +130,6 @@ describe('configured routes resolve to real pages', () => {
     }
   })
 
-  // The app shell renders one search form for every role. Pointing it at a group
-  // a role cannot enter discards their query and bounces them home.
   it('serves every route the employer flow links to', () => {
     for (const href of [
       '/employer',
@@ -127,6 +144,70 @@ describe('configured routes resolve to real pages', () => {
     }
   })
 
+  it('serves every P2 and P3 route', () => {
+    for (const href of [
+      '/resume',
+      '/ai-coach',
+      '/messages',
+      '/employer/messages',
+      '/pipeline',
+      '/analytics',
+      '/admin/users',
+      '/admin/jobs',
+      '/admin/reports',
+      '/settings',
+      '/notifications',
+    ]) {
+      expect(routeExists(href), href + ' has no page').toBe(true)
+    }
+  })
+
+  // Every page the sidebar offers is built, not a placeholder saying it is
+  // coming. A nav full of promises is worse than a shorter nav.
+  it('has no ComingSoon placeholders left behind a nav link', () => {
+    const placeholders: string[] = []
+
+    for (const role of ['CANDIDATE', 'EMPLOYER', 'ADMIN'] as const) {
+      for (const section of navFor(role)) {
+        for (const item of section.items) {
+          const file = pageFileFor(item.href)
+          if (file && readFileSync(file, 'utf8').includes('ComingSoon')) {
+            placeholders.push(`${role} → ${item.href}`)
+          }
+        }
+      }
+    }
+
+    expect(placeholders, `pages still showing a placeholder: ${placeholders.join(', ')}`).toEqual(
+      [],
+    )
+  })
+
+  /**
+   * No page still promises a capability as future work.
+   *
+   * The ComingSoon check above only walks nav hrefs, so it cannot see a page
+   * reached by a link from another page. The employer's applicant screen said
+   * "Downloading arrives with CV storage" for a whole phase after CV storage
+   * shipped — the service that authorizes the download existed, passed its
+   * tests, and had no caller on the employer side at all.
+   */
+  it('has no page promising a capability that has already shipped', () => {
+    const stale: string[] = []
+    const promises = [/arrives with/i, /coming soon/i, /not yet built/i, /in a later phase/i]
+
+    for (const [route, file] of ROUTE_FILES) {
+      const source = readFileSync(file, 'utf8')
+      for (const promise of promises) {
+        if (promise.test(source)) stale.push(`${route} (${promise.source})`)
+      }
+    }
+
+    expect(stale, `pages promising future work: ${stale.join(', ')}`).toEqual([])
+  })
+
+  // The app shell renders one search form for every role. Pointing it at a group
+  // a role cannot enter discards their query and bounces them home.
   it('points the shell search at a route every signed-in role can reach', () => {
     for (const role of ['CANDIDATE', 'EMPLOYER', 'ADMIN'] as const) {
       const target = searchActionFor(role)

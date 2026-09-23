@@ -10,6 +10,7 @@ import {
   candidateProfileIdFor,
   savedJobIds,
 } from '@/lib/db/repositories/saved-job.repository'
+import { matchScoresFor } from '@/lib/matching/match-for'
 import { CATEGORIES } from '@/config/categories'
 import { countPublishedJobs, listPublishedJobs } from '@/lib/db/repositories/job.repository'
 import { cn } from '@/lib/utils/cn'
@@ -36,11 +37,24 @@ export default async function JobsPage({
   const search = params.q?.trim() || undefined
 
   const profileId = await candidateProfileIdFor(user.id)
-  const [jobs, total, saved] = await Promise.all([
+  const [listed, total, saved] = await Promise.all([
     listPublishedJobs({ category, search }),
     countPublishedJobs(),
     profileId ? savedJobIds(profileId) : Promise.resolve(new Set<string>()),
   ])
+
+  // Scored in one pass — the profile is fetched once and reused across every
+  // job, so ranking fifty roles is two queries rather than fifty-one.
+  const scores = profileId
+    ? await matchScoresFor(profileId, listed.map((j) => j.id))
+    : new Map<string, number>()
+
+  const ranked = scores.size > 0
+  const jobs = ranked
+    ? listed
+        .map((job) => ({ ...job, score: scores.get(job.id) ?? 0 }))
+        .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+    : listed
 
   return (
     <>
@@ -109,11 +123,18 @@ export default async function JobsPage({
 
         <Card padded className="h-max lg:sticky lg:top-24">
           <CardTitle>Ranking</CardTitle>
-          <p className="m-0 text-[13px] leading-relaxed text-muted">
-            Roles are shown newest first for now. Once your CV is on file, CareerMate scores each
-            one against your actual background and explains why — that arrives with the AI
-            features.
-          </p>
+          {ranked ? (
+            <p className="m-0 text-[13px] leading-relaxed text-muted">
+              Ranked against your profile — skills, sector, location and salary. The score is
+              calculated here, not by AI, so it does not change when a provider is busy. Open a
+              role to see the breakdown.
+            </p>
+          ) : (
+            <p className="m-0 text-[13px] leading-relaxed text-muted">
+              Newest first. Fill in your profile and these will be ranked against your actual
+              background instead.
+            </p>
+          )}
         </Card>
       </div>
     </>

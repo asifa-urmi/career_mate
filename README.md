@@ -21,7 +21,8 @@ src/components/       React components — props only, no data fetching
 src/app/              Route groups: guard, call a service, render
 src/server/services/  Business rules, authorization, orchestration
 src/lib/db/repositories/   Prisma queries
-src/lib/ai/           AI provider chain (P2)
+src/lib/ai/           AI provider chain: adapters, router, prompts, schemas
+src/lib/matching/     Match scoring — computed in code, never by a model
 src/lib/supabase/     Auth clients and storage
 ```
 
@@ -35,6 +36,12 @@ Three rules keep it that way, and they are worth enforcing in review:
 3. **Only services decide authorization.** A page asks "who is this" through a
    guard, then hands the user to a service, which decides whether they may do the
    thing.
+4. **No feature names an AI provider.** It asks the router for a completion;
+   only `src/lib/ai/providers/` knows Gemini or Groq exists. Adding a provider is
+   one adapter file and one line of ordering.
+5. **Match scores are computed, never generated.** A score that changed when a
+   quota ran out would not be a score. The AI narrates the evidence the scorer
+   produces; it never produces the number.
 
 | Path | What lives there |
 |---|---|
@@ -66,7 +73,7 @@ npm run db:studio   # browse the database
 
 ## Going live
 
-Four of these steps need your own accounts and credentials. Everything else is
+Five of these steps need your own accounts and credentials. Everything else is
 already in the repository.
 
 ### 1. Create the Supabase project
@@ -101,8 +108,8 @@ generating new SQL on your machine:
 npm run db:deploy
 ```
 
-That runs two migrations. The first creates the tables. The second is the one
-that matters for safety: **`20260923000001_rls_deny_all`**.
+That runs every committed migration in order. The first creates the tables. The
+second is the one that matters for safety: **`20260923000001_rls_deny_all`**.
 
 Supabase grants every table in the `public` schema to the `anon` role by
 default, and the anon key is deliberately public — it ships inside the browser
@@ -114,8 +121,13 @@ reads the role from exactly that row.
 
 This app never uses that REST API; all database access goes through Prisma on
 the server, behind service-layer authorization. So the migration enables and
-forces RLS on all 21 tables, revokes the public grants, and creates no policies
-at all. Nothing is reachable through the public API.
+forces RLS on every table, revokes the public grants, and creates no policies at
+all. Nothing is reachable through the public API.
+
+A migration that adds a table carries its own deny-all block, and
+`tests/unit/rls-migration.test.ts` reads every migration and fails if any table
+created by any of them is missing one — so a table added later cannot quietly
+escape it.
 
 `npm test` fails if a future table is added without the same treatment.
 
@@ -138,27 +150,53 @@ npm run dev
 Open <http://localhost:3000>. The landing page should show live sector counts and
 the public board should list twelve roles.
 
-### 3. Add the AI keys (optional, and optional by design)
+### 3. Create the CV storage bucket
 
-Every AI provider key is optional. A provider counts as available only when its
-key is present, and the router tries them in order — moving to the next on a rate
-limit, an exhausted quota, a server error or a malformed response. With no keys
-at all the app still works: it falls through to a deterministic local provider
-and labels its answers as a fallback rather than passing them off as model
-output.
+Supabase dashboard -> **Storage** -> **New bucket**:
 
-Sign up for as many free tiers as you like; that is the point of the chain.
+- Name: `resumes`
+- **Public bucket: OFF.** This matters. CVs carry full names, work history and
+  often a phone number; a public bucket makes every one of them readable by
+  anyone with the URL.
 
-| Provider | Where to get a key |
-|---|---|
-| Google Gemini | <https://aistudio.google.com/apikey> |
-| Groq | <https://console.groq.com/keys> |
-| Mistral | <https://console.mistral.ai/api-keys> |
-| OpenRouter | <https://openrouter.ai/keys> |
+Nothing else to configure. The app never serves a file directly — it decides who
+may read one (a candidate their own; an employer only a CV attached to an
+application to their own company's job) and then mints a link that expires in two
+minutes.
 
-Add whichever you have to `.env.local`. AI features arrive in P2.
+### 4. Add the AI keys (optional, and optional by design)
 
-### 4. Push to GitHub
+Every key is optional. A provider counts as available only when its key is
+present, and the router tries them in order — moving to the next on a rate limit,
+an exhausted quota, a server error, a timeout or a response it cannot parse. A
+provider that reports a rate limit is skipped for a minute and an exhausted quota
+for fifteen, rather than being retried on every request and adding its round trip
+to all of them.
+
+With no keys at all the app still works. It falls through to a deterministic
+local provider, and every answer it gives says the assistant is unavailable, with
+the UI labelling it plainly as not AI-generated. A plausible-sounding generic
+reply would be worse than none, because someone would act on it.
+
+Sign up for as many free tiers as you like — that is the point of the chain.
+
+| Order | Provider | Free tier | Where to get a key |
+|---|---|---|---|
+| 1 | Google Gemini | Most generous | <https://aistudio.google.com/apikey> |
+| 2 | Groq | Smaller, very fast | <https://console.groq.com/keys> |
+| 3 | Mistral | Modest | <https://console.mistral.ai/api-keys> |
+| 4 | OpenRouter | Has `:free` models | <https://openrouter.ai/keys> |
+| 5 | Offline fallback | Always | built in, no key |
+
+Change the order with `AI_PROVIDER_ORDER="groq,gemini"` if you prefer. The
+fallback is appended whatever you write, so a typo cannot leave the chain without
+a floor.
+
+Which provider answered is shown on every AI panel, so when one runs out you can
+see the change rather than guess at it. Every request is also recorded in the
+`AiInteraction` table with the providers that failed first.
+
+### 5. Push to GitHub
 
 ```bash
 git remote add origin https://github.com/YOUR-USERNAME/careermate.git
@@ -168,7 +206,7 @@ git push -u origin main
 `.gitignore` already excludes `.env`, `.env.local` and `node_modules`. Check
 `git status` before pushing if you are unsure.
 
-### 5. Deploy on Vercel
+### 6. Deploy on Vercel
 
 1. Go to [vercel.com/new](https://vercel.com/new) and import the repository.
 2. Framework preset: **Next.js** (detected automatically). Set the **Build
@@ -184,7 +222,7 @@ Then, in Supabase → **Authentication** → **URL Configuration**, set the Site
 to your Vercel domain so confirmation and password-reset links point at the live
 site rather than localhost.
 
-### 6. Make yourself an admin
+### 7. Make yourself an admin
 
 Admin accounts are deliberately not creatable through signup — the signup form
 does not accept the role, so a crafted request cannot mint one.
@@ -206,11 +244,12 @@ out and back in. `/admin` is now reachable.
 |---|---|---|
 | **P0 Foundation** | Done | Design system, schema, auth with three roles, route protection, onboarding, marketing pages, job board, dashboards |
 | **P1 Core loop** | Done | Job detail, saved jobs, apply flow, application tracker, candidate profile, employer job posting and management, candidate review with stage transitions, company profile, notifications |
-| **P2 CV + AI** | Next | CV upload and versions, the AI provider chain, match explanations, coach, interview prep |
-| **P3 Remainder** | Planned | Messaging, notifications, pipeline board, analytics, admin moderation |
+| **P2 CV + AI** | Done | CV upload, versions and private storage with signed links, text extraction, the failover AI provider chain, match scoring, match explanations, CV review, cover letters, interview prep |
+| **P3 Remainder** | Done | Two-sided messaging threaded per application, notification centre, employer pipeline board, hiring analytics, admin user and job moderation, the report queue, account settings, data export and deletion |
 
-Pages that belong to a later phase exist and say so, rather than returning a 404
-from a link the sidebar offers.
+Every destination the sidebar offers is a built page. A test walks the nav for
+all three roles and fails if a link has no page behind it, or if the page it
+finds is still a placeholder.
 
 The design document and implementation plans are in
 [`docs/superpowers/`](docs/superpowers/).

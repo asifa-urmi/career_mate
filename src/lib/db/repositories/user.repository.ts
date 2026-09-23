@@ -14,12 +14,22 @@ const SESSION_SELECT = {
   name: true,
   role: true,
   onboardedAt: true,
+  suspendedAt: true,
+  suspendedReason: true,
   candidateProfile: { select: { id: true } },
   employerProfile: { select: { id: true } },
 } as const
 
 export function findUserById(id: string) {
   return prisma.user.findUnique({ where: { id }, select: SESSION_SELECT })
+}
+
+/** What the settings page needs: preferences and when the account was opened. */
+export function findAccountSettings(id: string) {
+  return prisma.user.findUnique({
+    where: { id },
+    select: { notifyOn: true, createdAt: true },
+  })
 }
 
 export function findUserByEmail(email: string) {

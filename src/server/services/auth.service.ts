@@ -137,6 +137,30 @@ export async function signIn(input: LoginInput): Promise<Result<AuthenticatedUse
     )
   }
 
+  /**
+   * A suspended account is turned away here, with the reason.
+   *
+   * `getCurrentUser` already returns null for one, so without this the sign-in
+   * appeared to succeed and then every page bounced them back to login, which
+   * bounced them forward again — a loop with valid credentials, no message, and
+   * the notification explaining the suspension on a page they could not reach.
+   *
+   * The session Supabase just issued is discarded, so nobody carries a valid
+   * cookie around an app that will not let them in.
+   */
+  if (user.suspendedAt) {
+    await supabase.auth.signOut()
+
+    return err(
+      appError(
+        'FORBIDDEN',
+        user.suspendedReason
+          ? `Your account is suspended. Reason: ${user.suspendedReason}. Contact support if you think this is wrong.`
+          : 'Your account is suspended. Contact support if you think this is wrong.',
+      ),
+    )
+  }
+
   return ok({
     userId: user.id,
     role: user.role,

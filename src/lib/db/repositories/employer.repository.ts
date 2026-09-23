@@ -1,4 +1,10 @@
-import type { ApplicationStage, JobCategory, JobStatus, ModerationStatus } from '@prisma/client'
+import type {
+  ApplicationStage,
+  JobCategory,
+  JobStatus,
+  ModerationStatus,
+  Role,
+} from '@prisma/client'
 import { prisma } from '@/lib/db/prisma'
 import { formatTaka, relativeTime } from '@/lib/utils/format'
 
@@ -162,7 +168,7 @@ export async function findCompanyApplication(companyId: string, applicationId: s
       createdAt: true,
       coverLetter: true,
       screeningAnswers: true,
-      resume: { select: { label: true, fileName: true } },
+      resume: { select: { id: true, label: true, fileName: true } },
       job: { select: { id: true, title: true } },
       candidateProfile: {
         select: {
@@ -207,6 +213,16 @@ export type ModerationQueueItem = {
   location: string
   salaryLabel: string
   summary: string
+  /**
+   * The rest of the body, because a moderator approves what they can see.
+   *
+   * Only the summary used to reach this screen, so the parts a candidate
+   * actually reads were approved by someone who had never seen them — which is
+   * exactly where a listing hides a line telling applicants to email a scan of
+   * their national ID.
+   */
+  responsibilities: string[]
+  requirements: string[]
   status: JobStatus
   moderation: ModerationStatus
   postedByName: string
@@ -236,6 +252,8 @@ export async function listJobsForModeration(
       salaryMaxBdt: true,
       salaryNote: true,
       summary: true,
+      responsibilities: true,
+      requirements: true,
       status: true,
       moderation: true,
       updatedAt: true,
@@ -253,9 +271,13 @@ export async function listJobsForModeration(
     location: j.location,
     salaryLabel: formatTaka(j.salaryMinBdt, j.salaryMaxBdt, j.salaryNote),
     summary: j.summary,
+    responsibilities: j.responsibilities,
+    requirements: j.requirements,
     status: j.status,
     moderation: j.moderation,
-    postedByName: j.postedBy.name,
+    // The poster's account may have been deleted since. The listing is the
+    // company's, so it survives them.
+    postedByName: j.postedBy?.name ?? 'a former colleague',
     submittedLabel: relativeTime(j.updatedAt, now),
   }))
 }
@@ -270,4 +292,81 @@ export async function moderationCounts(): Promise<Record<ModerationStatus, numbe
   }
   for (const row of rows) counts[row.moderation] = row._count._all
   return counts
+}
+
+export type AdminUserRow = {
+  id: string
+  name: string
+  email: string
+  role: Role
+  suspended: boolean
+  suspendedReason: string | null
+  joinedLabel: string
+  applications: number
+  postedJobs: number
+}
+
+/** Every account, newest first, for the admin screen. */
+export async function listUsersForAdmin(
+  filter: { role?: Role; suspended?: boolean; search?: string } = {},
+): Promise<AdminUserRow[]> {
+  const users = await prisma.user.findMany({
+    where: {
+      ...(filter.role ? { role: filter.role } : {}),
+      ...(filter.suspended === undefined
+        ? {}
+        : filter.suspended
+          ? { suspendedAt: { not: null } }
+          : { suspendedAt: null }),
+      ...(filter.search
+        ? {
+            OR: [
+              { name: { contains: filter.search, mode: 'insensitive' } },
+              { email: { contains: filter.search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      suspendedAt: true,
+      suspendedReason: true,
+      createdAt: true,
+      _count: { select: { postedJobs: true } },
+      candidateProfile: { select: { _count: { select: { applications: true } } } },
+    },
+  })
+
+  const now = new Date()
+  return users.map((u) => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    role: u.role,
+    suspended: u.suspendedAt !== null,
+    suspendedReason: u.suspendedReason,
+    joinedLabel: relativeTime(u.createdAt, now),
+    applications: u.candidateProfile?._count.applications ?? 0,
+    postedJobs: u._count.postedJobs,
+  }))
+}
+
+export async function adminCounts(): Promise<{
+  candidates: number
+  employers: number
+  admins: number
+  suspended: number
+}> {
+  const [candidates, employers, admins, suspended] = await Promise.all([
+    prisma.user.count({ where: { role: 'CANDIDATE' } }),
+    prisma.user.count({ where: { role: 'EMPLOYER' } }),
+    prisma.user.count({ where: { role: 'ADMIN' } }),
+    prisma.user.count({ where: { suspendedAt: { not: null } } }),
+  ])
+  return { candidates, employers, admins, suspended }
 }

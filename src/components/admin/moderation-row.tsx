@@ -66,6 +66,35 @@ export function ModerationRow({ job }: { job: ModerationQueueItem }) {
             <span>Updated {job.submittedLabel}</span>
           </div>
           <p className="m-0 mt-2.5 text-[13px] leading-relaxed text-[#626d86]">{job.summary}</p>
+
+          {/* The whole body, not just the blurb. A moderator approves what they
+              can see, and what a candidate reads is the responsibilities and the
+              requirements — which is where a listing hides a line telling
+              applicants to email a scan of their national ID. */}
+          {(job.responsibilities.length > 0 || job.requirements.length > 0) && (
+            <div className="mt-2.5 grid gap-2.5 rounded-[10px] bg-bg p-3 sm:grid-cols-2">
+              {job.responsibilities.length > 0 && (
+                <div>
+                  <b className="block text-xs text-navy">Responsibilities</b>
+                  <ul className="m-0 mt-1 grid gap-1 pl-4 text-xs leading-relaxed text-[#626d86]">
+                    {job.responsibilities.map((r, i) => (
+                      <li key={i}>{r}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {job.requirements.length > 0 && (
+                <div>
+                  <b className="block text-xs text-navy">Requirements</b>
+                  <ul className="m-0 mt-1 grid gap-1 pl-4 text-xs leading-relaxed text-[#626d86]">
+                    {job.requirements.map((r, i) => (
+                      <li key={i}>{r}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {decision === 'APPROVED' && (

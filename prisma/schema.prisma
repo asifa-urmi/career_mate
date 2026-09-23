@@ -118,6 +118,15 @@ model User {
   role        Role      @default(CANDIDATE)
   avatarUrl   String?
   onboardedAt DateTime?
+  /// Set by an admin. Suspension is reversible and destroys nothing — an
+  /// account that can only be deleted is an account that gets deleted by
+  /// mistake.
+  suspendedAt DateTime?
+  suspendedReason String?
+  /// Which notifications this person wants. Defaults to all on; an empty list
+  /// means they turned everything off, which is different from never having
+  /// chosen.
+  notifyOn    NotificationType[] @default([APPLICATION_UPDATE, NEW_MESSAGE, JOB_MATCH, SYSTEM])
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -131,8 +140,11 @@ model User {
   reportsResolved  Report[]                  @relation("ReportResolver")
   stageChanges     ApplicationEvent[]        @relation("EventActor")
   aiInteractions   AiInteraction[]
+  adminActions     AdminAction[]  @relation("AdminActionActor")
+  adminActionsOnMe AdminAction[]  @relation("AdminActionTarget")
 
   @@index([role])
+  @@index([suspendedAt])
 }
 
 // ============================================================================
@@ -307,7 +319,12 @@ model EmployerProfile {
 model Job {
   id              String           @id @default(cuid())
   companyId       String
-  postedById      String
+  /// Nullable so deleting the employer who posted a job does not have to take
+  /// the job with it. The listing belongs to the company, which survives; the
+  /// person who typed it in may not. A required relation here emitted ON DELETE
+  /// RESTRICT, which made account deletion impossible for any employer who had
+  /// ever posted a role.
+  postedById      String?
   title           String
   category        JobCategory
   location        String
@@ -333,7 +350,7 @@ model Job {
   updatedAt       DateTime         @updatedAt
 
   company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  postedBy     User          @relation("JobPostedBy", fields: [postedById], references: [id])
+  postedBy     User?         @relation("JobPostedBy", fields: [postedById], references: [id], onDelete: SetNull)
   applications Application[]
   savedBy      SavedJob[]
 
@@ -411,6 +428,10 @@ model Conversation {
   id        String   @id @default(cuid())
   subject   String?
   jobId     String?
+  /// The application this thread grew out of. Messaging is scoped to a real
+  /// relationship — an employer talks to someone who applied to their role, not
+  /// to anyone whose id they can guess.
+  applicationId String? @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -504,4 +525,35 @@ model AiInteraction {
 
   @@index([feature, createdAt])
   @@index([providerId])
+}
+
+enum AdminActionType {
+  ROLE_CHANGED
+  SUSPENDED
+  RESTORED
+}
+
+/// One row per administrator action against another account.
+///
+/// An admin who cannot be audited is not an admin. The notification the affected
+/// person receives says "a platform administrator"; this says which one, so a
+/// compromised or rogue admin account leaves more behind than the resulting
+/// state. Written in the same transaction as the change it records.
+///
+/// `actorId` sets null rather than cascading: an admin deleting their account
+/// must not erase what they did. The name is kept alongside for that case.
+model AdminAction {
+  id           String          @id @default(cuid())
+  actorId      String?
+  actorName    String
+  targetUserId String?
+  action       AdminActionType
+  detail       String?
+  createdAt    DateTime        @default(now())
+
+  actor      User? @relation("AdminActionActor", fields: [actorId], references: [id], onDelete: SetNull)
+  targetUser User? @relation("AdminActionTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([targetUserId, createdAt])
 }
