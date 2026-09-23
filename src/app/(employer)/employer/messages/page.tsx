@@ -1,24 +1,39 @@
 import type { Metadata } from 'next'
 import { requireGroup } from '@/lib/auth/require-group'
-import { ComingSoon } from '@/components/layout/coming-soon'
+import { PageHead } from '@/components/layout'
+import { Button } from '@/components/ui'
+import { Inbox } from '@/components/messages/inbox'
+import {
+  findConversation,
+  listConversations,
+} from '@/lib/db/repositories/message.repository'
 
 export const metadata: Metadata = { title: 'Messages — CareerMate' }
 export const dynamic = 'force-dynamic'
 
-export default async function Page() {
-  await requireGroup('employer')
+export default async function EmployerMessagesPage() {
+  const user = await requireGroup('employer')
+  const conversations = await listConversations(user.id)
+
+  const first = conversations[0]
+  const initial = first ? await findConversation(user.id, first.id) : null
 
   return (
-    <ComingSoon
-      title="Messages"
-      description="Conversations with candidates."
-      phase="P3"
-      does={[
-        'One thread per candidate, tied to the role.',
-        'Reply without leaving the workspace.',
-      ]}
-      backHref="/employer"
-      backLabel="Back to overview"
-    />
+    <>
+      <PageHead
+        title="Messages"
+        description="Conversations with people who applied to your roles."
+        actions={
+          <Button href="/candidates" variant="ghost">
+            Review candidates
+          </Button>
+        }
+      />
+      <Inbox
+        conversations={conversations}
+        initial={initial}
+        emptyBody="Open a conversation from a candidate's page. You can message anyone who has applied to one of your roles."
+      />
+    </>
   )
 }

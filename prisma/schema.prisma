@@ -118,6 +118,15 @@ model User {
   role        Role      @default(CANDIDATE)
   avatarUrl   String?
   onboardedAt DateTime?
+  /// Set by an admin. Suspension is reversible and destroys nothing — an
+  /// account that can only be deleted is an account that gets deleted by
+  /// mistake.
+  suspendedAt DateTime?
+  suspendedReason String?
+  /// Which notifications this person wants. Defaults to all on; an empty list
+  /// means they turned everything off, which is different from never having
+  /// chosen.
+  notifyOn    NotificationType[] @default([APPLICATION_UPDATE, NEW_MESSAGE, JOB_MATCH, SYSTEM])
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -133,6 +142,7 @@ model User {
   aiInteractions   AiInteraction[]
 
   @@index([role])
+  @@index([suspendedAt])
 }
 
 // ============================================================================
@@ -411,6 +421,10 @@ model Conversation {
   id        String   @id @default(cuid())
   subject   String?
   jobId     String?
+  /// The application this thread grew out of. Messaging is scoped to a real
+  /// relationship — an employer talks to someone who applied to their role, not
+  /// to anyone whose id they can guess.
+  applicationId String? @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

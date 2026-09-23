@@ -4,6 +4,7 @@ import { requireGroup } from '@/lib/auth/require-group'
 import { PageHead } from '@/components/layout'
 import { Avatar, Badge, Button, Card, CardTitle, SkillTag, StatusChip } from '@/components/ui'
 import { StageControl } from '@/components/employer/stage-control'
+import { MessageCandidateButton } from '@/components/employer/message-candidate-button'
 import { categoryLabel } from '@/config/categories'
 import { EXPERIENCE_LEVELS, stageLabel } from '@/config/constants'
 import { relativeTime } from '@/lib/utils/format'
@@ -154,6 +155,9 @@ export default async function CandidateDetailPage({
               <StatusChip stage={application.stage} />
             </div>
             <StageControl applicationId={application.id} stage={application.stage} />
+            <div className="mt-3 border-t border-line pt-3">
+              <MessageCandidateButton applicationId={application.id} />
+            </div>
           </Card>
 
           <Card padded>
