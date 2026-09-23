@@ -18,6 +18,7 @@ export default async function SharedLayout({ children }: { children: React.React
     <AppShell
       role={user.role}
       userName={user.name}
+      userAvatarUrl={user.avatarUrl}
       unreadCount={unread}
       userSubtitle={user.email}
       primaryAction={{

@@ -22,12 +22,14 @@ import { isNavItemActive } from './nav-active'
 export function Sidebar({
   role,
   userName,
+  userAvatarUrl,
   userSubtitle,
   open,
   onNavigate,
 }: {
   role: Role
   userName: string
+  userAvatarUrl?: string | null
   userSubtitle: string
   open: boolean
   onNavigate: () => void
@@ -88,7 +90,7 @@ export function Sidebar({
 
       <div className="mt-auto border-t border-white/10 pt-3">
         <div className="flex items-center gap-2.5">
-          <Avatar name={userName} size={38} />
+          <Avatar name={userName} src={userAvatarUrl} size={38} />
           <div className="min-w-0 flex-1">
             <b className="block truncate text-[13px] text-white">{userName}</b>
             <small className="block truncate text-[11px] text-[#8b97b5]">{userSubtitle}</small>

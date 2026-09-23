@@ -6,7 +6,7 @@ import { requireUser } from '@/lib/auth/guards'
 import { companySetupSchema, onboardingSchema } from '@/lib/validation/onboarding.schema'
 import { completeCompanySetup, completeOnboarding } from '@/server/services/onboarding.service'
 import { uploadResume } from '@/server/services/resume.service'
-import { attachedResume } from '@/lib/validation/attached-file'
+import { attachedFile } from '@/lib/validation/attached-file'
 
 export type SetupFormState = {
   fieldErrors?: Record<string, string[]>
@@ -56,7 +56,7 @@ export async function completeOnboardingAction(
    * the person on a wizard they can no longer submit. They land on the CV page
    * instead, where the file is either listed or can be added again.
    */
-  const resume = attachedResume(formData.get('resume'))
+  const resume = attachedFile(formData.get('resume'))
   let resumeFailed = false
 
   if (resume) {

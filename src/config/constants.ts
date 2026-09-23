@@ -68,3 +68,28 @@ export const ACCEPTED_RESUME_MIME = [
 export const ACCEPTED_RESUME_EXTENSIONS = '.pdf,.docx'
 
 export const RESUME_BUCKET = 'resumes'
+
+/**
+ * Profile photos.
+ *
+ * Smaller than a CV on purpose: this is a headshot shown at 38 pixels in a
+ * sidebar, and a 10 MB one costs every viewer the download for no visible gain.
+ *
+ * SVG is not on the list and never should be. It is markup a browser executes,
+ * and serving one from our own origin would hand whoever uploaded it a script
+ * running on our domain.
+ */
+export const MAX_AVATAR_BYTES = 2 * 1024 * 1024
+export const ACCEPTED_AVATAR_MIME = ['image/png', 'image/jpeg', 'image/webp']
+export const ACCEPTED_AVATAR_EXTENSIONS = '.png,.jpg,.jpeg,.webp'
+
+/**
+ * Public, unlike the CV bucket.
+ *
+ * An avatar is meant to be seen — by an employer reading an application, by the
+ * other side of a message thread — and signing every one of them would mean a
+ * round trip per face in a list, with links that expire while the page is open.
+ * The stored path carries a random component so the bucket cannot be walked by
+ * guessing user ids.
+ */
+export const AVATAR_BUCKET = 'avatars'

@@ -51,3 +51,45 @@ export function looksLikeDeclaredType(buffer: Uint8Array, declared: string): boo
 
   return false
 }
+
+/**
+ * WebP hides its tag at offset 8: `RIFF` then four size bytes then `WEBP`.
+ *
+ * It needs its own check because every other signature here starts at zero, and
+ * phones now produce WebP by default — refusing it would reject an ordinary
+ * photo from an ordinary camera.
+ */
+function looksLikeWebp(buffer: Uint8Array): boolean {
+  if (buffer.length < 12) return false
+
+  const riff = [0x52, 0x49, 0x46, 0x46]
+  const webp = [0x57, 0x45, 0x42, 0x50]
+
+  return (
+    riff.every((byte, i) => buffer[i] === byte) &&
+    webp.every((byte, i) => buffer[8 + i] === byte)
+  )
+}
+
+/**
+ * Whether the bytes are consistent with a declared image type.
+ *
+ * An avatar goes into a public bucket and is served back to everyone who sees
+ * the person, so what lands there has to be an image in fact rather than by its
+ * `Content-Type`, which is whatever the client chose to send.
+ *
+ * SVG is deliberately not an accepted type anywhere and would fail here anyway:
+ * it is markup that a browser executes, and serving one from our own origin
+ * hands whoever uploaded it a script on our domain.
+ */
+export function looksLikeImage(buffer: Uint8Array, declared: string): boolean {
+  if (declared === 'image/webp') return looksLikeWebp(buffer)
+
+  const actual = sniffMimeType(buffer)
+  if (!actual) return false
+
+  if (declared === 'image/png') return actual === 'image/png'
+  if (declared === 'image/jpeg') return actual === 'image/jpeg'
+
+  return false
+}

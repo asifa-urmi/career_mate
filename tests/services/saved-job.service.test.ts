@@ -26,6 +26,7 @@ function user(overrides: Partial<SessionUser> = {}): SessionUser {
     id: 'uid-1',
     email: 'a@b.com',
     name: 'A',
+    avatarUrl: null,
     role: 'CANDIDATE',
     onboardedAt: new Date(),
     onboarded: true,

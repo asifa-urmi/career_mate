@@ -39,7 +39,7 @@ vi.mock('@/lib/db/prisma', () => ({
 const { sendMessage, startConversation } = await import('@/server/services/message.service')
 
 function user(role: SessionUser['role'], id = 'uid-emp'): SessionUser {
-  return { id, email: 'a@b.com', name: 'A', role, onboardedAt: new Date(), onboarded: true }
+  return { id, email: 'a@b.com', name: 'A', avatarUrl: null, role, onboardedAt: new Date(), onboarded: true }
 }
 
 beforeEach(() => {

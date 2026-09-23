@@ -8,6 +8,8 @@ export type SessionUser = {
   id: string
   email: string
   name: string
+  /** A stored profile photo, if they have uploaded one. */
+  avatarUrl: string | null
   role: Role
   onboardedAt: Date | null
   /** Derived — see `isOnboarded`. Guards and routing use this, never the stamp. */
@@ -101,6 +103,7 @@ async function resolveCurrentUser(): Promise<SessionUser | null> {
     id: user.id,
     email,
     name: user.name,
+    avatarUrl: user.avatarUrl,
     role: user.role,
     onboardedAt: user.onboardedAt,
     onboarded: isOnboarded(user),

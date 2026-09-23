@@ -10,6 +10,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <AppShell
       role="ADMIN"
       userName={user.name}
+      userAvatarUrl={user.avatarUrl}
       userSubtitle="Platform operations"
       unreadCount={unread}
     >

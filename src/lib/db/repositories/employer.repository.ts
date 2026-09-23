@@ -102,6 +102,7 @@ export async function findCompanyJob(companyId: string, jobId: string) {
 export type ApplicantModel = {
   id: string
   candidateName: string
+  candidateAvatarUrl: string | null
   headline: string | null
   location: string | null
   skills: string[]
@@ -133,7 +134,7 @@ export async function listCompanyApplications(
         select: {
           headline: true,
           location: true,
-          user: { select: { name: true } },
+          user: { select: { name: true, avatarUrl: true } },
           skills: { select: { name: true }, take: 5 },
         },
       },
@@ -144,6 +145,7 @@ export async function listCompanyApplications(
   return rows.map((a) => ({
     id: a.id,
     candidateName: a.candidateProfile.user.name,
+    candidateAvatarUrl: a.candidateProfile.user.avatarUrl,
     headline: a.candidateProfile.headline,
     location: a.candidateProfile.location,
     skills: a.candidateProfile.skills.map((s) => s.name),
@@ -177,7 +179,7 @@ export async function findCompanyApplication(companyId: string, applicationId: s
           bio: true,
           experienceLevel: true,
           primarySector: true,
-          user: { select: { name: true, email: true } },
+          user: { select: { name: true, email: true, avatarUrl: true } },
           skills: { select: { name: true } },
           experiences: {
             orderBy: { startDate: 'desc' },

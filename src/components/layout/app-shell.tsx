@@ -15,6 +15,7 @@ import { Sidebar } from './sidebar'
 export function AppShell({
   role,
   userName,
+  userAvatarUrl,
   userSubtitle,
   primaryAction,
   unreadCount = 0,
@@ -22,6 +23,7 @@ export function AppShell({
 }: {
   role: Role
   userName: string
+  userAvatarUrl?: string | null
   userSubtitle: string
   primaryAction?: { href: string; label: string }
   unreadCount?: number
@@ -34,6 +36,7 @@ export function AppShell({
       <Sidebar
         role={role}
         userName={userName}
+        userAvatarUrl={userAvatarUrl}
         userSubtitle={userSubtitle}
         open={menuOpen}
         onNavigate={() => setMenuOpen(false)}

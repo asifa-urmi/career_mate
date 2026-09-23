@@ -20,13 +20,13 @@ vi.mock('@/lib/db/prisma', () => ({
 const { changeUserRole, setUserSuspended } = await import('@/server/services/admin.service')
 
 function admin(id = 'uid-admin'): SessionUser {
-  return { id, email: 'ad@min.com', name: 'Ad', role: 'ADMIN', onboardedAt: new Date(), onboarded: true }
+  return { id, email: 'ad@min.com', name: 'Ad', avatarUrl: null, role: 'ADMIN', onboardedAt: new Date(), onboarded: true }
 }
 
 beforeEach(() => {
   for (const m of [findUser, updateUser, countAdmins, createNotification, createAdminAction])
     m.mockReset()
-  findUser.mockResolvedValue({ id: 'uid-other', name: 'Rafat', role: 'CANDIDATE', suspendedAt: null })
+  findUser.mockResolvedValue({ id: 'uid-other', name: 'Rafat', avatarUrl: null, role: 'CANDIDATE', suspendedAt: null })
   updateUser.mockResolvedValue({ id: 'uid-other' })
   countAdmins.mockResolvedValue(3)
   createNotification.mockResolvedValue({ id: 'n-1' })
@@ -62,7 +62,7 @@ describe('changeUserRole', () => {
   })
 
   it('refuses demoting the last remaining admin', async () => {
-    findUser.mockResolvedValue({ id: 'uid-other', name: 'Other', role: 'ADMIN', suspendedAt: null })
+    findUser.mockResolvedValue({ id: 'uid-other', name: 'Other', avatarUrl: null, role: 'ADMIN', suspendedAt: null })
     countAdmins.mockResolvedValue(0)
 
     const result = await changeUserRole(admin(), 'uid-other', 'CANDIDATE')
@@ -73,7 +73,7 @@ describe('changeUserRole', () => {
   })
 
   it('allows demoting an admin while others remain', async () => {
-    findUser.mockResolvedValue({ id: 'uid-other', name: 'Other', role: 'ADMIN', suspendedAt: null })
+    findUser.mockResolvedValue({ id: 'uid-other', name: 'Other', avatarUrl: null, role: 'ADMIN', suspendedAt: null })
     countAdmins.mockResolvedValue(2)
 
     const result = await changeUserRole(admin(), 'uid-other', 'CANDIDATE')
@@ -124,6 +124,7 @@ describe('setUserSuspended', () => {
     findUser.mockResolvedValue({
       id: 'uid-other',
       name: 'Rafat',
+      avatarUrl: null,
       role: 'CANDIDATE',
       suspendedAt: new Date(),
     })
@@ -153,7 +154,7 @@ describe('setUserSuspended', () => {
   })
 
   it('refuses suspending the last admin', async () => {
-    findUser.mockResolvedValue({ id: 'uid-other', name: 'Other', role: 'ADMIN', suspendedAt: null })
+    findUser.mockResolvedValue({ id: 'uid-other', name: 'Other', avatarUrl: null, role: 'ADMIN', suspendedAt: null })
     countAdmins.mockResolvedValue(0)
 
     const result = await setUserSuspended(admin(), 'uid-other', true, 'Testing')
@@ -195,6 +196,7 @@ describe('administrators are counted by whether they can actually sign in', () =
     findUser.mockResolvedValue({
       id: 'uid-other',
       name: 'Other',
+      avatarUrl: null,
       role: 'ADMIN',
       suspendedAt: null,
     })
@@ -211,6 +213,7 @@ describe('administrators are counted by whether they can actually sign in', () =
     findUser.mockResolvedValue({
       id: 'uid-other',
       name: 'Other',
+      avatarUrl: null,
       role: 'ADMIN',
       suspendedAt: null,
     })
@@ -251,6 +254,7 @@ describe('every admin action names the administrator who took it', () => {
     findUser.mockResolvedValue({
       id: 'uid-other',
       name: 'Other',
+      avatarUrl: null,
       role: 'CANDIDATE',
       suspendedAt: new Date(),
     })

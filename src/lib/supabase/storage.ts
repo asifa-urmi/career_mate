@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { createAdminSupabase } from './server'
-import { RESUME_BUCKET } from '@/config/constants'
+import { AVATAR_BUCKET, RESUME_BUCKET } from '@/config/constants'
 
 /**
  * CV files live in a private bucket.
@@ -45,4 +45,32 @@ export async function createSignedResumeUrl(
     return { ok: false, message: error?.message ?? 'Could not create a download link' }
   }
   return { ok: true, url: data.signedUrl }
+}
+
+/**
+ * Stores a profile photo and returns the URL to render.
+ *
+ * `upsert` is on: replacing a photo overwrites in place rather than leaving the
+ * old object behind, and the path is already unique per upload.
+ */
+export async function uploadAvatarFile(
+  path: string,
+  bytes: Uint8Array,
+  contentType: string,
+): Promise<{ ok: true; url: string } | { ok: false; message: string }> {
+  const supabase = createAdminSupabase()
+
+  const { error } = await supabase.storage
+    .from(AVATAR_BUCKET)
+    .upload(path, bytes, { contentType, upsert: true })
+
+  if (error) return { ok: false, message: error.message }
+
+  const { data } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(path)
+  return { ok: true, url: data.publicUrl }
+}
+
+export async function deleteAvatarFile(path: string): Promise<void> {
+  const supabase = createAdminSupabase()
+  await supabase.storage.from(AVATAR_BUCKET).remove([path])
 }

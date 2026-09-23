@@ -120,7 +120,7 @@ export default async function CandidatesPage({
             <li key={a.id}>
               <Card className="p-4.5">
                 <div className="flex flex-wrap items-start gap-3.5">
-                  <Avatar name={a.candidateName} size={48} />
+                  <Avatar name={a.candidateName} src={a.candidateAvatarUrl} size={48} />
 
                   <div className="min-w-0 flex-1">
                     <h3 className="m-0 mb-1 text-[15px] font-extrabold">

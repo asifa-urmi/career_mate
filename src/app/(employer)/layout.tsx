@@ -16,6 +16,7 @@ export default async function EmployerLayout({ children }: { children: React.Rea
     <AppShell
       role="EMPLOYER"
       userName={user.name}
+      userAvatarUrl={user.avatarUrl}
       unreadCount={unread}
       userSubtitle={
         profile ? `${profile.company.name}${profile.company.verified ? ' · Verified' : ''}` : 'Employer'

@@ -320,6 +320,7 @@ describe('signing in while suspended', () => {
       id: 'uid-1',
       email: 'a@b.com',
       name: 'Rafat',
+      avatarUrl: null,
       role: 'EMPLOYER',
       onboardedAt: new Date(),
       suspendedAt: new Date(),

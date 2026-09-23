@@ -64,7 +64,7 @@ export default async function CandidateDetailPage({
         <div className="grid gap-4.5">
           <Card padded>
             <div className="flex flex-wrap items-start gap-4">
-              <Avatar name={candidate.user.name} size={64} />
+              <Avatar name={candidate.user.name} src={candidate.user.avatarUrl} size={64} />
               <div className="min-w-0 flex-1">
                 <h2 className="m-0 mb-1 font-display text-xl font-extrabold">
                   {candidate.user.name}

@@ -30,7 +30,7 @@ const { REPORTS_PER_HOUR, fileReport, resolveReport } = await import(
 )
 
 function user(role: SessionUser['role'] = 'CANDIDATE', id = 'uid-1'): SessionUser {
-  return { id, email: 'a@b.com', name: 'A', role, onboardedAt: new Date(), onboarded: true }
+  return { id, email: 'a@b.com', name: 'A', avatarUrl: null, role, onboardedAt: new Date(), onboarded: true }
 }
 
 const report = {

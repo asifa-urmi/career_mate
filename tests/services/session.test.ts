@@ -19,6 +19,7 @@ function row(overrides: Record<string, unknown> = {}) {
     id: 'uid-1',
     email: 'old@example.com',
     name: 'Rafat',
+    avatarUrl: null,
     role: 'CANDIDATE',
     onboardedAt: new Date(),
     suspendedAt: null,

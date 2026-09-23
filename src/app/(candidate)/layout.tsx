@@ -17,6 +17,7 @@ export default async function CandidateLayout({ children }: { children: React.Re
     <AppShell
       role="CANDIDATE"
       userName={user.name}
+      userAvatarUrl={user.avatarUrl}
       unreadCount={unread}
       userSubtitle={profile ? categoryLabel(profile.primarySector) : 'Candidate'}
       primaryAction={{ href: '/jobs', label: 'Find jobs' }}

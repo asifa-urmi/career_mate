@@ -20,6 +20,7 @@ function user(role: SessionUser['role'] = 'CANDIDATE'): SessionUser {
     id: 'uid-1',
     email: 'a@b.com',
     name: 'Rafat',
+    avatarUrl: null,
     role,
     onboardedAt: new Date(),
     onboarded: true,

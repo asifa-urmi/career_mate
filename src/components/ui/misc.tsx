@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import { cn } from '@/lib/utils/cn'
 import { clampScore, initials as toInitials } from '@/lib/utils/format'
 
@@ -26,15 +27,43 @@ export function Progress({
   )
 }
 
+/**
+ * A person, as a photo if they have uploaded one and as their initials if not.
+ *
+ * The initials are the default rather than a placeholder silhouette: they are
+ * recognisable at 30 pixels in a pipeline column, which a generic grey head is
+ * not.
+ *
+ * The photo goes through next/image, so a 2 MB upload is not shipped whole to
+ * render a 38-pixel circle.
+ */
 export function Avatar({
   name,
+  src,
   size = 38,
   className,
 }: {
   name: string
+  /** A stored profile photo, if there is one. */
+  src?: string | null
   size?: number
   className?: string
 }) {
+  if (src) {
+    return (
+      <Image
+        src={src}
+        alt=""
+        width={size}
+        height={size}
+        className={cn('shrink-0 rounded-full object-cover', className)}
+        style={{ width: size, height: size }}
+        // Decorative: every use of this sits beside the person's name in text.
+        aria-hidden="true"
+      />
+    )
+  }
+
   return (
     <span
       className={cn(

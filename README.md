@@ -170,6 +170,17 @@ may read one (a candidate their own; an employer only a CV attached to an
 application to their own company's job) and then mints a link that expires in two
 minutes.
 
+Then a second bucket for profile photos:
+
+- Name: `avatars`
+- **Public bucket: ON.** The opposite of the CV bucket, and deliberately. An
+  avatar is meant to be seen — by an employer reading an application, by the
+  other side of a message thread — and signing each one would mean a round trip
+  per face in a list, with links that expire while the page is open. The stored
+  path carries a random component, so the bucket cannot be walked by guessing
+  user ids, and the service refuses anything whose bytes are not really a PNG,
+  JPEG or WebP.
+
 ### 4. Add the AI keys (optional, and optional by design)
 
 Every key is optional. A provider counts as available only when its key is

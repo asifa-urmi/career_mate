@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { requireGroup } from '@/lib/auth/require-group'
 import { PageHead } from '@/components/layout'
-import { Avatar, Badge, Card, CardTitle, Progress, SkillTag } from '@/components/ui'
+import { Badge, Card, CardTitle, Progress, SkillTag } from '@/components/ui'
 import {
   BasicsSection,
   EntrySection,
@@ -14,6 +14,7 @@ import {
 import { candidateProfileIdFor } from '@/lib/db/repositories/saved-job.repository'
 import { getCandidateProfile } from '@/lib/db/repositories/candidate.repository'
 import { missingProfileSignals, profileCompleteness } from '@/lib/profile/completeness'
+import { AvatarControl } from '@/components/profile/avatar-control'
 import { categoryLabel } from '@/config/categories'
 import { EXPERIENCE_LEVELS } from '@/config/constants'
 import {
@@ -73,7 +74,7 @@ export default async function ProfilePage() {
         <div className="profile-cover h-[150px]" />
         <div className="relative px-6 pt-0 pb-6">
           <div className="-mt-10 mb-3">
-            <Avatar name={user.name} size={84} className="ring-4 ring-white" />
+            <AvatarControl name={user.name} src={user.avatarUrl} />
           </div>
           <h2 className="m-0 mb-1 font-display text-2xl font-extrabold">{user.name}</h2>
           <p className="m-0 text-sm text-muted">

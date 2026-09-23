@@ -2,6 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireUser } from '@/lib/auth/guards'
+import { attachedFile } from '@/lib/validation/attached-file'
+import { removeAvatar, updateAvatar } from '@/server/services/avatar.service'
 import {
   basicsSchema,
   educationSchema,
@@ -173,4 +175,41 @@ export async function deleteEntryAction(
 
   revalidateProfile()
   return {}
+}
+
+export type AvatarState = { error?: string; saved?: string }
+
+/**
+ * The profile photo. Acts on the caller and takes no user id, so there is
+ * nothing in the request naming whose photo to change.
+ */
+export async function updateAvatarAction(
+  _prev: AvatarState,
+  formData: FormData,
+): Promise<AvatarState> {
+  const user = await requireUser()
+
+  const file = attachedFile(formData.get('avatar'))
+  if (!file) return { error: 'Choose an image first.' }
+
+  const result = await updateAvatar(user, {
+    fileName: file.name,
+    mimeType: file.type,
+    bytes: new Uint8Array(await file.arrayBuffer()),
+  })
+
+  if (!result.ok) return { error: result.error.message }
+
+  revalidatePath('/', 'layout')
+  return { saved: 'Photo updated.' }
+}
+
+export async function removeAvatarAction(): Promise<AvatarState> {
+  const user = await requireUser()
+  const result = await removeAvatar(user)
+
+  if (!result.ok) return { error: result.error.message }
+
+  revalidatePath('/', 'layout')
+  return { saved: 'Photo removed.' }
 }
