@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import type { Role } from '@prisma/client'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { findUserById } from '@/lib/db/repositories/user.repository'
@@ -48,7 +49,21 @@ export function isOnboarded(user: UserRow): boolean {
  * unauthenticated rather than as a user with no role: every protected page reads
  * `role`, so handing back a half-built user would crash all of them.
  */
-export async function getCurrentUser(): Promise<SessionUser | null> {
+export const getCurrentUser = cache(resolveCurrentUser)
+
+/**
+ * Memoised for the length of one request.
+ *
+ * Every protected navigation resolved the session at least twice — the route
+ * group's layout guard, then the page's own — and each one was an HTTP call to
+ * Supabase to validate the token plus a query for the row. Against a database
+ * in another region that was most of the wait before any page work started.
+ *
+ * `cache` collapses them to one for a single render pass. The proxy's own
+ * refresh runs in a different runtime and is not deduplicated by this; it is
+ * also the one call that has to happen, since it is what renews the cookie.
+ */
+async function resolveCurrentUser(): Promise<SessionUser | null> {
   const supabase = await createServerSupabase()
   const { data, error } = await supabase.auth.getUser()
   if (error || !data.user) return null

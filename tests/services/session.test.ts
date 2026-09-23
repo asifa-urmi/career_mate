@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const authGetUser = vi.fn()
@@ -112,5 +114,24 @@ describe('getCurrentUser', () => {
 
       expect(user?.id).toBe('uid-1')
     })
+  })
+})
+
+/**
+ * Resolving the session twice in one request should cost one round trip, and
+ * `getCurrentUser` is wrapped in React's `cache` to make that so.
+ *
+ * That memoisation cannot be exercised here: `cache` deduplicates within a
+ * request scope, which Next provides for a render or an action and this suite
+ * does not — two calls here really do run twice. So this asserts the wrapper is
+ * in place and says plainly that the behaviour behind it is verified by reading
+ * the code, not by running it.
+ */
+describe('the session is memoised per request', () => {
+  it('wraps the resolver rather than exporting it directly', () => {
+    const source = readFileSync(join(process.cwd(), 'src', 'lib', 'auth', 'session.ts'), 'utf8')
+
+    expect(source).toMatch(/export const getCurrentUser = cache\(/)
+    expect(source).toMatch(/import \{ cache \} from 'react'/)
   })
 })

@@ -1,5 +1,7 @@
 import { PrismaClient, type JobCategory, type JobType, type WorkMode } from '@prisma/client'
 
+import { seedCandidates } from './seed-candidates'
+
 const prisma = new PrismaClient()
 
 /**
@@ -557,6 +559,8 @@ async function main() {
 
   console.log(`  ${COMPANIES.length} companies`)
 
+  const jobIdBySlug = new Map<string, string>()
+
   for (const j of JOBS) {
     const companyId = companyIdBySlug.get(j.company)
     const postedById = employerIdBySlug.get(j.company)
@@ -592,14 +596,20 @@ async function main() {
       publishedAt,
     }
 
-    if (existing) {
-      await prisma.job.update({ where: { id: existing.id }, data })
-    } else {
-      await prisma.job.create({ data })
-    }
+    const job = existing
+      ? await prisma.job.update({ where: { id: existing.id }, data, select: { id: true } })
+      : await prisma.job.create({ data, select: { id: true } })
+
+    jobIdBySlug.set(j.slug, job.id)
   }
 
   console.log(`  ${JOBS.length} jobs`)
+
+  // Demo candidates and their applications. Without them an employer opens a
+  // new deployment to an empty pipeline, an analytics page of zeroes and a
+  // candidate list with nothing in it, which looks broken rather than new.
+  const seeded = await seedCandidates(prisma, jobIdBySlug, employerIdBySlug)
+  console.log(`  ${seeded.candidates} candidates, ${seeded.applications} applications`)
 
   const [companies, jobs, users] = await Promise.all([
     prisma.company.count(),
@@ -609,8 +619,9 @@ async function main() {
 
   console.log(`Done. ${companies} companies, ${jobs} jobs, ${users} users in the database.`)
   console.log('')
-  console.log('Seeded employer accounts cannot be signed into — they have no Supabase auth')
-  console.log('identity. Create your own account through /signup.')
+  console.log('Seeded accounts cannot be signed into — they have no Supabase auth identity,')
+  console.log('and their addresses use a .local domain that cannot receive mail. Create your')
+  console.log('own account through /signup.')
 }
 
 main()
