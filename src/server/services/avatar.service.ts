@@ -72,9 +72,7 @@ export async function updateAvatar(
     const path = `${user.id}/${randomUUID()}.${extensionFor(input.mimeType)}`
 
     const stored = await uploadAvatarFile(path, input.bytes, input.mimeType)
-    if (!stored.ok) {
-      return err(appError('INTERNAL', 'We could not save that photo. Please try again.'))
-    }
+    if (!stored.ok) return err(storageError(stored.message))
 
     await prisma.user.update({ where: { id: user.id }, data: { avatarUrl: stored.url } })
 
@@ -83,9 +81,41 @@ export async function updateAvatar(
     await removeStored(existing?.avatarUrl ?? null)
 
     return ok({ url: stored.url })
-  } catch {
-    return err(appError('INTERNAL', 'We could not save that photo. Please try again.'))
+  } catch (error) {
+    return err(storageError(error instanceof Error ? error.message : ''))
   }
+}
+
+/**
+ * What a failed upload says, which depends on who can fix it.
+ *
+ * A bucket that was never created and a key that never reached the server are
+ * both configuration, and "please try again" is false advice for either — no
+ * number of retries creates a bucket. Whoever runs the site is the one who can
+ * fix them, and they cannot fix what they are not told. A genuine transient
+ * fault is the one case where trying again is right.
+ *
+ * The underlying message is not shown: it comes from the storage API and may
+ * carry internal detail. It is classified, not repeated.
+ */
+function storageError(message: string) {
+  const text = message.toLowerCase()
+
+  if (text.includes('bucket not found') || text.includes('nosuchbucket')) {
+    return appError(
+      'INTERNAL',
+      'Photo storage is not set up for this site yet. Nothing you can do from here — whoever runs it needs to create the avatars bucket.',
+    )
+  }
+
+  if (text.includes('service_role') || text.includes('environment configuration')) {
+    return appError(
+      'INTERNAL',
+      'Photo storage is not configured on the server. Nothing you can do from here — whoever runs it needs to finish the setup.',
+    )
+  }
+
+  return appError('INTERNAL', 'We could not save that photo. Please try again.')
 }
 
 export async function removeAvatar(user: SessionUser): Promise<Result<void>> {

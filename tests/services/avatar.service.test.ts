@@ -165,3 +165,59 @@ describe('removeAvatar', () => {
     expect(updateUser.mock.calls[0]?.[0]?.where).toEqual({ id: 'uid-1' })
   })
 })
+
+/**
+ * A storage failure has to say which one it is.
+ *
+ * "We could not save that photo. Please try again." is the same for a bucket
+ * that was never created, a key that never reached the server, and a transient
+ * network fault — and only the third is worth trying again. Whoever runs the
+ * site is the one who can fix the first two, and they cannot fix what they are
+ * not told.
+ */
+describe('what a failed upload says', () => {
+  it('names a missing bucket, because retrying will never create one', async () => {
+    uploadAvatarFile.mockResolvedValue({ ok: false, message: 'Bucket not found' })
+
+    const result = await updateAvatar(user(), {
+      fileName: 'me.png',
+      mimeType: 'image/png',
+      bytes: png(),
+    })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error.message).toMatch(/not set up|not configured/i)
+      expect(result.error.message).not.toMatch(/try again/i)
+    }
+  })
+
+  it('names missing configuration when the server has no storage credentials', async () => {
+    uploadAvatarFile.mockRejectedValue(
+      new Error('Invalid environment configuration:\n  SUPABASE_SERVICE_ROLE_KEY: required'),
+    )
+
+    const result = await updateAvatar(user(), {
+      fileName: 'me.png',
+      mimeType: 'image/png',
+      bytes: png(),
+    })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.message).toMatch(/not set up|not configured/i)
+  })
+
+  // A real transient fault is the one case where trying again is the right advice.
+  it('still says to try again for an ordinary failure', async () => {
+    uploadAvatarFile.mockResolvedValue({ ok: false, message: 'socket hang up' })
+
+    const result = await updateAvatar(user(), {
+      fileName: 'me.png',
+      mimeType: 'image/png',
+      bytes: png(),
+    })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.message).toMatch(/try again/i)
+  })
+})
