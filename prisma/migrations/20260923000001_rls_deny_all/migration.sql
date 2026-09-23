@@ -30,6 +30,26 @@
 -- opened up; until then, deny-all is the default.
 
 
+-- The two roles below belong to Supabase, not to Postgres. The REVOKE
+-- statements name them directly, and Postgres refuses to revoke from a role
+-- that does not exist, so on a plain Postgres — a local machine, a CI runner —
+-- this migration aborted here with `role "anon" does not exist` and the deploy
+-- stopped dead. The app could then only ever be run against Supabase.
+--
+-- Creating them when missing is a no-op on Supabase, where they already exist,
+-- and lets the same committed SQL apply everywhere. NOLOGIN and no grants: they
+-- exist only so the revokes below have something to revoke.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN
+    CREATE ROLE anon NOLOGIN NOINHERIT;
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN
+    CREATE ROLE authenticated NOLOGIN NOINHERIT;
+  END IF;
+END
+$$;
+
 ALTER TABLE "public"."AiInteraction" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."AiInteraction" FORCE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE "public"."AiInteraction" FROM anon, authenticated;

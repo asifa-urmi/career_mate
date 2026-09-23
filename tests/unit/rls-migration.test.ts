@@ -101,6 +101,30 @@ describe('deny-all RLS migration', () => {
   it('creates no permissive policy — opening a table up must be deliberate', () => {
     expect(rls).not.toMatch(/CREATE POLICY/i)
   })
+
+  /**
+   * `anon` and `authenticated` are Supabase's roles, not Postgres's.
+   *
+   * The REVOKE statements name them directly, and Postgres refuses to revoke
+   * from a role that does not exist — so on a plain Postgres, which is what a
+   * local machine and a CI runner have, this migration aborted with `role
+   * "anon" does not exist` and the whole deploy stopped at migration two. The
+   * app could not be run anywhere except against Supabase.
+   *
+   * Creating them when missing costs nothing on Supabase, where they already
+   * exist, and makes the same committed SQL apply everywhere.
+   */
+  it('does not assume Supabase-only roles already exist', () => {
+    for (const role of ['anon', 'authenticated']) {
+      expect(
+        rls,
+        `the migration revokes from "${role}" without ensuring it exists`,
+      ).toMatch(new RegExp(`CREATE ROLE ${role}`, 'i'))
+    }
+
+    // Guarded, or re-running it on Supabase would fail on the existing role.
+    expect(rls).toMatch(/pg_roles/i)
+  })
 })
 
 describe('search index migration', () => {

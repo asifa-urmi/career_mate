@@ -37,6 +37,55 @@ describe('prisma schema', () => {
     expect(blocking, `relations to User that refuse a deletion: ${blocking.join(' | ')}`).toEqual([])
   })
 
+  /**
+   * Every scalar list defaults to empty.
+   *
+   * Prisma types a scalar list as OPTIONAL on create, but Postgres makes the
+   * column NOT NULL with no default — so omitting one typechecks cleanly and
+   * then fails at runtime with a null constraint violation. The seed omitted
+   * `Job.screeningQuestions` and `tsc --noEmit` had nothing to say about it;
+   * the first thing that noticed was Postgres, on a real database.
+   *
+   * An empty list is also the honest default: a job that asks no screening
+   * questions asks none, it does not have an unknown number of them.
+   */
+  it('defaults every scalar list to empty, since the typechecker cannot', () => {
+    // A list of a MODEL is a relation, stored on the other side, and needs no
+    // default. A list of a scalar or an ENUM is a column on this table, and does.
+    const enums = [...schema.matchAll(/enum (\w+) \{/g)].map((m) => m[1])
+    const scalarTypes = new Set([
+      'String',
+      'Int',
+      'Float',
+      'Boolean',
+      'DateTime',
+      'Json',
+      'Bytes',
+      'Decimal',
+      'BigInt',
+      ...enums,
+    ])
+
+    const columnLists = schema
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => {
+        const match = /^(\w+)\s+(\w+)\[\]/.exec(line)
+        return match ? scalarTypes.has(match[2] ?? '') : false
+      })
+
+    // Relation lists dominate this schema, so zero matches would mean the filter
+    // broke rather than that every list is defaulted.
+    expect(columnLists.length, 'no scalar lists matched — has the schema moved?').toBeGreaterThan(3)
+
+    const undefaulted = columnLists.filter((line) => !/@default\(\[/.test(line))
+
+    expect(
+      undefaulted,
+      `scalar lists a create can omit and Postgres will then reject: ${undefaulted.join(' | ')}`,
+    ).toEqual([])
+  })
+
   it('configures a direct url so migrations bypass the pooler', () => {
     expect(schema).toContain('directUrl = env("DIRECT_URL")')
   })

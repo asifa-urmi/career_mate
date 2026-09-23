@@ -334,14 +334,14 @@ model Job {
   salaryMaxBdt    Int?
   salaryNote      String?
   summary         String
-  responsibilities String[]
-  requirements    String[]
-  requiredSkills  String[]
-  preferredSkills String[]
+  responsibilities String[]         @default([])
+  requirements    String[]         @default([])
+  requiredSkills  String[]         @default([])
+  preferredSkills String[]         @default([])
   /// Free-text questions the candidate answers when applying. Their answers are
   /// stored on Application.screeningAnswers, keyed by the question's index, so
   /// editing a job's questions later cannot rewrite what someone already said.
-  screeningQuestions String[]
+  screeningQuestions String[]      @default([])
   status          JobStatus        @default(DRAFT)
   moderation      ModerationStatus @default(PENDING)
   publishedAt     DateTime?
