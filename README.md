@@ -220,7 +220,25 @@ git push -u origin main
 
 Then, in Supabase → **Authentication** → **URL Configuration**, set the Site URL
 to your Vercel domain so confirmation and password-reset links point at the live
-site rather than localhost.
+site rather than localhost. Add the same domain under **Redirect URLs**.
+
+### 6b. Decide how signup confirms an email
+
+Supabase creates a project with **Confirm email** switched on, which is the
+right default for a live site but the first thing that will confuse you while
+testing. With it on, `/signup` returns "check your inbox" and no session exists
+until the link is clicked — the app handles this and says so, rather than
+appearing to succeed and then bouncing you.
+
+Two things to know:
+
+- Supabase's built-in email sender is rate-limited to a handful of messages an
+  hour and is meant for testing, not for real users. Before you have real
+  signups, set your own SMTP under **Authentication → Emails → SMTP Settings**.
+- To try the app end to end without waiting on mail, turn **Confirm email** off
+  under **Authentication → Sign In / Providers → Email** while you are testing,
+  and turn it back on before anyone else uses the site. Leaving it off in
+  production lets anyone sign up as an address they do not own.
 
 ### 7. Make yourself an admin
 
