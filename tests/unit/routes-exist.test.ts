@@ -98,7 +98,15 @@ describe('configured routes resolve to real pages', () => {
   // Any route a page links to must exist before that link ships. The P0 review
   // found twelve job cards all pointing at a detail page nobody had built.
   it('serves every route the candidate flow links to', () => {
-    for (const href of ['/jobs', '/jobs/some-id', '/saved', '/tracker', '/profile']) {
+    for (const href of [
+      '/jobs',
+      '/jobs/some-id',
+      '/saved',
+      '/tracker',
+      '/profile',
+      '/apply/some-id',
+      '/apply/some-id/submitted',
+    ]) {
       expect(routeExists(href), `${href} has no page`).toBe(true)
     }
   })

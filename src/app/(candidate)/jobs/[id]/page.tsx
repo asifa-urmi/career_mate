@@ -2,6 +2,7 @@ import { Button } from '@/components/ui'
 import { requireGroup } from '@/lib/auth/require-group'
 import { JobDetail } from '@/components/jobs/job-detail'
 import { SaveButton } from '@/components/jobs/save-button'
+import { findApplicationForJob } from '@/lib/db/repositories/application.repository'
 import {
   candidateProfileIdFor,
   savedJobIds,
@@ -14,7 +15,10 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
   const { id } = await params
 
   const profileId = await candidateProfileIdFor(user.id)
-  const saved = profileId ? await savedJobIds(profileId) : new Set<string>()
+  const [saved, existingApplication] = await Promise.all([
+    profileId ? savedJobIds(profileId) : Promise.resolve(new Set<string>()),
+    profileId ? findApplicationForJob(profileId, id) : Promise.resolve(null),
+  ])
 
   return (
     <JobDetail
@@ -23,11 +27,13 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
       backLabel="← All jobs"
       cta={
         <>
-          {/* The apply route lands in Task 4; linking to it before then would
-              ship exactly the dead link the P0 review found on every job card. */}
-          <Button href="/jobs" variant="ghost">
-            Applying arrives shortly
-          </Button>
+          {existingApplication ? (
+            <Button href="/tracker" variant="soft">
+              Applied — track it
+            </Button>
+          ) : (
+            <Button href={`/apply/${id}`}>Apply for this role</Button>
+          )}
           <SaveButton jobId={id} saved={saved.has(id)} />
         </>
       }
