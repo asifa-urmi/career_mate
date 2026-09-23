@@ -1,5 +1,6 @@
 import { requireGroup } from '@/lib/auth/require-group'
 import { AppShell } from '@/components/layout'
+import { unreadNotificationCount } from '@/lib/db/repositories/notification.repository'
 import { homePathFor } from '@/lib/auth/roles'
 
 /**
@@ -11,11 +12,13 @@ import { homePathFor } from '@/lib/auth/roles'
  */
 export default async function SharedLayout({ children }: { children: React.ReactNode }) {
   const user = await requireGroup('shared')
+  const unread = await unreadNotificationCount(user.id)
 
   return (
     <AppShell
       role={user.role}
       userName={user.name}
+      unreadCount={unread}
       userSubtitle={user.email}
       primaryAction={{
         href: homePathFor(user.role),
