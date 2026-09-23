@@ -39,9 +39,18 @@ export async function listCompanyJobs(companyId: string): Promise<EmployerJobMod
       moderation: true,
       updatedAt: true,
       _count: { select: { applications: true } },
-      applications: { where: { stage: 'APPLIED' }, select: { id: true } },
     },
   })
+
+  // One grouped count for the "new" figure rather than selecting every APPLIED
+  // row per job to call .length on it — that loaded 20,000 rows into memory to
+  // produce the number 20000, on every render of two different pages.
+  const newRows = await prisma.application.groupBy({
+    by: ['jobId'],
+    where: { job: { companyId }, stage: 'APPLIED' },
+    _count: { _all: true },
+  })
+  const newByJob = new Map(newRows.map((r) => [r.jobId, r._count._all]))
 
   const now = new Date()
   return jobs.map((j) => ({
@@ -53,7 +62,7 @@ export async function listCompanyJobs(companyId: string): Promise<EmployerJobMod
     status: j.status,
     moderation: j.moderation,
     applicantCount: j._count.applications,
-    newCount: j.applications.length,
+    newCount: newByJob.get(j.id) ?? 0,
     updatedLabel: relativeTime(j.updatedAt, now),
   }))
 }
@@ -154,7 +163,7 @@ export async function findCompanyApplication(companyId: string, applicationId: s
       coverLetter: true,
       screeningAnswers: true,
       resume: { select: { label: true, fileName: true } },
-      job: { select: { id: true, title: true, screeningQuestions: true } },
+      job: { select: { id: true, title: true } },
       candidateProfile: {
         select: {
           headline: true,
@@ -188,4 +197,77 @@ export async function findCompanyApplication(companyId: string, applicationId: s
       },
     },
   })
+}
+
+export type ModerationQueueItem = {
+  id: string
+  title: string
+  companyName: string
+  category: JobCategory
+  location: string
+  salaryLabel: string
+  summary: string
+  status: JobStatus
+  moderation: ModerationStatus
+  postedByName: string
+  submittedLabel: string
+}
+
+/**
+ * The moderation queue — every job, filterable by decision, oldest first so the
+ * longest-waiting listing is handled first.
+ *
+ * Unscoped by design: this is the one read whose caller is an ADMIN, and the
+ * page that uses it is behind `requireGroup('admin')`.
+ */
+export async function listJobsForModeration(
+  moderation?: ModerationStatus,
+): Promise<ModerationQueueItem[]> {
+  const jobs = await prisma.job.findMany({
+    where: moderation ? { moderation } : {},
+    orderBy: [{ updatedAt: 'asc' }],
+    take: 100,
+    select: {
+      id: true,
+      title: true,
+      category: true,
+      location: true,
+      salaryMinBdt: true,
+      salaryMaxBdt: true,
+      salaryNote: true,
+      summary: true,
+      status: true,
+      moderation: true,
+      updatedAt: true,
+      company: { select: { name: true } },
+      postedBy: { select: { name: true } },
+    },
+  })
+
+  const now = new Date()
+  return jobs.map((j) => ({
+    id: j.id,
+    title: j.title,
+    companyName: j.company.name,
+    category: j.category,
+    location: j.location,
+    salaryLabel: formatTaka(j.salaryMinBdt, j.salaryMaxBdt, j.salaryNote),
+    summary: j.summary,
+    status: j.status,
+    moderation: j.moderation,
+    postedByName: j.postedBy.name,
+    submittedLabel: relativeTime(j.updatedAt, now),
+  }))
+}
+
+export async function moderationCounts(): Promise<Record<ModerationStatus, number>> {
+  const rows = await prisma.job.groupBy({ by: ['moderation'], _count: { _all: true } })
+  const counts: Record<ModerationStatus, number> = {
+    PENDING: 0,
+    APPROVED: 0,
+    FLAGGED: 0,
+    REMOVED: 0,
+  }
+  for (const row of rows) counts[row.moderation] = row._count._all
+  return counts
 }

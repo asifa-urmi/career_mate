@@ -177,6 +177,60 @@ describe('applyToJob', () => {
     expect(findResume).not.toHaveBeenCalled()
   })
 
+  // Answers used to be stored keyed by question index while the question text
+  // was read live from the job. Editing a job's questions then re-paired every
+  // stored answer with a different question: reorder two and the employer reads
+  // "What is your expected salary? — No". The questions are snapshotted with the
+  // answers at submit time instead.
+  it('stores the question text alongside each answer, as it was when they applied', async () => {
+    findJob.mockResolvedValue({
+      id: 'job-1',
+      screeningQuestions: ['Are you willing to relocate?', 'What is your expected salary?'],
+    })
+
+    await applyToJob(user(), {
+      ...input,
+      screeningAnswers: { '0': 'No', '1': '80,000' },
+    })
+
+    expect(createApplication.mock.calls[0]?.[0]?.data?.screeningAnswers).toEqual([
+      { question: 'Are you willing to relocate?', answer: 'No' },
+      { question: 'What is your expected salary?', answer: '80,000' },
+    ])
+  })
+
+  it('records an unanswered question rather than dropping it', async () => {
+    findJob.mockResolvedValue({ id: 'job-1', screeningQuestions: ['Why this role?', 'Notice?'] })
+
+    await applyToJob(user(), { ...input, screeningAnswers: { '0': 'Interested' } })
+
+    expect(createApplication.mock.calls[0]?.[0]?.data?.screeningAnswers).toEqual([
+      { question: 'Why this role?', answer: 'Interested' },
+      { question: 'Notice?', answer: '' },
+    ])
+  })
+
+  it('ignores answers to questions the job does not have', async () => {
+    findJob.mockResolvedValue({ id: 'job-1', screeningQuestions: ['Why this role?'] })
+
+    await applyToJob(user(), {
+      ...input,
+      screeningAnswers: { '0': 'Interested', '7': 'injected', '99': 'injected' },
+    })
+
+    expect(createApplication.mock.calls[0]?.[0]?.data?.screeningAnswers).toEqual([
+      { question: 'Why this role?', answer: 'Interested' },
+    ])
+  })
+
+  it('stores an empty list when the job asks nothing', async () => {
+    findJob.mockResolvedValue({ id: 'job-1', screeningQuestions: [] })
+
+    await applyToJob(user(), { ...input, screeningAnswers: { '0': 'unsolicited' } })
+
+    expect(createApplication.mock.calls[0]?.[0]?.data?.screeningAnswers).toEqual([])
+  })
+
   it('stamps consent rather than trusting the client to have meant it', async () => {
     await applyToJob(user(), input)
 

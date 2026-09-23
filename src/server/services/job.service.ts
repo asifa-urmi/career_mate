@@ -101,7 +101,11 @@ export async function updateJobPosting(
   try {
     const result = await prisma.job.updateMany({
       where: { id: jobId, companyId },
-      data: contentFrom(input),
+      // Content edits send the job back to moderation. Without this an approved
+      // listing's title, summary and requirements could be rewritten to anything
+      // and go live instantly under the old approval — moderation bypassed by
+      // editing rather than by posting.
+      data: { ...contentFrom(input), moderation: 'PENDING' },
     })
     if (result.count === 0) return err(appError('NOT_FOUND', 'We could not find that job.'))
     return ok(undefined)
@@ -114,6 +118,12 @@ export async function updateJobPosting(
  * Publishing is the employer's decision; approval is not theirs to make. A
  * PUBLISHED job whose moderation is still PENDING stays off the public board,
  * because every public read requires both.
+ *
+ * `status: 'DRAFT'` is in the where clause, not merely enforced by the button
+ * that offers it. A server action is a public endpoint: without the
+ * precondition, replaying this call on a live job resets `publishedAt`, and the
+ * board orders by exactly that — one loop would keep a listing permanently at
+ * the top and make every card's "posted 2 minutes ago" false.
  */
 export async function publishJobPosting(
   user: SessionUser,
@@ -127,10 +137,12 @@ export async function publishJobPosting(
 
   try {
     const result = await prisma.job.updateMany({
-      where: { id: jobId, companyId },
+      where: { id: jobId, companyId, status: 'DRAFT' },
       data: { status: 'PUBLISHED', publishedAt: new Date() },
     })
-    if (result.count === 0) return err(appError('NOT_FOUND', 'We could not find that job.'))
+    if (result.count === 0) {
+      return err(appError('NOT_FOUND', 'We could not find a draft of that job to publish.'))
+    }
     return ok(undefined)
   } catch {
     return err(appError('INTERNAL', 'We could not publish that job. Please try again.'))

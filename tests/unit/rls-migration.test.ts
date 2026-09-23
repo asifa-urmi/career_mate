@@ -10,10 +10,38 @@ function migrationSql(prefix: string): string {
   return readFileSync(join(MIGRATIONS, dir, 'migration.sql'), 'utf8')
 }
 
+/** Every migration's SQL, so a table added later cannot escape this check. */
+function allMigrationSql(): string {
+  return readdirSync(MIGRATIONS)
+    .filter((d) => !d.endsWith('.toml'))
+    .map((d) => {
+      try {
+        return readFileSync(join(MIGRATIONS, d, 'migration.sql'), 'utf8')
+      } catch {
+        return ''
+      }
+    })
+    .join('\n')
+}
+
 const init = migrationSql('init')
 const rls = migrationSql('rls')
 
-const TABLES = [...init.matchAll(/CREATE TABLE (?:"public"\.)?"([^"]+)"/g)].map((m) => m[1]!)
+/**
+ * Collected across ALL migrations, not just init.
+ *
+ * Reading only the first migration made this guard useless for its actual job:
+ * a table created by any later migration was invisible to it, so forgetting the
+ * deny-all block would leave the suite green while Supabase's default grants
+ * exposed that table through PostgREST to the anon key in the browser bundle.
+ */
+const TABLES = [
+  ...new Set(
+    [...allMigrationSql().matchAll(/CREATE TABLE (?:IF NOT EXISTS )?(?:"public"\.)?"([^"]+)"/g)].map(
+      (m) => m[1]!,
+    ),
+  ),
+]
 
 describe('init migration', () => {
   it('is committed, so production schema is reviewed rather than generated on a laptop', () => {
@@ -24,7 +52,8 @@ describe('init migration', () => {
     expect(TABLES).toContain('User')
     expect(TABLES).toContain('Job')
     expect(TABLES).toContain('Application')
-    expect(TABLES.length).toBe(21)
+    // No frozen count: a hardcoded number cannot fail when a table is added.
+    expect(TABLES.length).toBeGreaterThanOrEqual(21)
   })
 
   it('indexes the predicate every public listing actually uses', () => {
@@ -36,7 +65,7 @@ describe('deny-all RLS migration', () => {
   // Supabase grants public-schema tables to anon by default and the anon key
   // ships in the browser bundle. A table this migration forgets is readable —
   // and for User, writable — by anyone with the public key.
-  it('locks down every table the init migration creates', () => {
+  it('locks down every table any migration creates', () => {
     const unprotected = TABLES.filter(
       (t) =>
         !rls.includes(`ALTER TABLE "public"."${t}" ENABLE ROW LEVEL SECURITY`) ||

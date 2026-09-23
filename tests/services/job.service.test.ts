@@ -128,12 +128,10 @@ describe('updateJobPosting', () => {
     expect(updateJob).not.toHaveBeenCalled()
   })
 
-  it('never lets an update change moderation state', async () => {
+  it('never lets an update set its own status', async () => {
     await updateJobPosting(user(), 'job-1', input)
 
-    const data = updateJob.mock.calls[0]?.[0]?.data
-    expect(data?.moderation).toBeUndefined()
-    expect(data?.status).toBeUndefined()
+    expect(updateJob.mock.calls[0]?.[0]?.data?.status).toBeUndefined()
   })
 })
 
@@ -167,6 +165,45 @@ describe('publishJobPosting', () => {
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('FORBIDDEN')
+  })
+})
+
+describe('publish and edit preconditions', () => {
+  // The action is a public endpoint. Without a state precondition a replayed
+  // call resets publishedAt on a live job, and the board orders by it — so a
+  // loop keeps one listing permanently at position 1 and makes every card's
+  // "posted 2 minutes ago" a lie.
+  it('only publishes a job that is still a draft', async () => {
+    await publishJobPosting(user(), 'job-1')
+
+    expect(updateJob.mock.calls[0]?.[0]?.where).toMatchObject({
+      id: 'job-1',
+      companyId: 'co-1',
+      status: 'DRAFT',
+    })
+  })
+
+  it('reports republishing a live job as not found rather than re-bumping it', async () => {
+    updateJob.mockResolvedValue({ count: 0 })
+
+    const result = await publishJobPosting(user(), 'job-1')
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('NOT_FOUND')
+  })
+
+  // Otherwise an approved job's entire content can be rewritten and go live
+  // instantly under a stale approval — moderation bypassed by editing.
+  it('sends an edited job back to moderation', async () => {
+    await updateJobPosting(user(), 'job-1', input)
+
+    expect(updateJob.mock.calls[0]?.[0]?.data?.moderation).toBe('PENDING')
+  })
+
+  it('still refuses to let an edit set its own status', async () => {
+    await updateJobPosting(user(), 'job-1', input)
+
+    expect(updateJob.mock.calls[0]?.[0]?.data?.status).toBeUndefined()
   })
 })
 

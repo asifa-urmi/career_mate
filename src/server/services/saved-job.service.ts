@@ -29,20 +29,23 @@ export async function toggleSavedJob(
       })
       if (!profile) return 'no-profile' as const
 
-      // Publish state is asserted inside the transaction: a job closed a moment
-      // ago must not end up on someone's saved list rendering nothing. NOT_FOUND
-      // rather than FORBIDDEN, so a draft job's id is not confirmed to exist.
+      // Un-saving comes first and needs no publish check: the row's own
+      // candidateProfileId is the authorization, and a job that closed after it
+      // was saved must still be removable. Requiring a live job here made a
+      // closed saved job permanently stuck on the list.
+      const removed = await tx.savedJob.deleteMany({
+        where: { candidateProfileId: profile.id, jobId },
+      })
+      if (removed.count > 0) return 'unsaved' as const
+
+      // Saving does require a live job: a draft or closed role would sit on the
+      // list rendering nothing. NOT_FOUND rather than FORBIDDEN, so a draft
+      // job's id is not confirmed to exist.
       const job = await tx.job.findFirst({
         where: { id: jobId, status: 'PUBLISHED', moderation: 'APPROVED' },
         select: { id: true },
       })
       if (!job) return 'no-job' as const
-
-      const removed = await tx.savedJob.deleteMany({
-        where: { candidateProfileId: profile.id, jobId },
-      })
-
-      if (removed.count > 0) return 'unsaved' as const
 
       await tx.savedJob.create({ data: { candidateProfileId: profile.id, jobId } })
       return 'saved' as const
@@ -56,7 +59,19 @@ export async function toggleSavedJob(
     }
 
     return ok({ saved: outcome === 'saved' })
-  } catch {
+  } catch (error) {
+    // Two clicks arriving together: one insert wins, the other violates the
+    // unique pair. The winner produced the state the person asked for, so
+    // reporting failure and reverting the heart would leave the UI disagreeing
+    // with the database.
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'P2002'
+    ) {
+      return ok({ saved: true })
+    }
     return err(appError('INTERNAL', 'We could not update your saved jobs. Please try again.'))
   }
 }

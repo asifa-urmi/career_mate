@@ -11,6 +11,28 @@ function isUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002'
 }
 
+/**
+ * Pairs each of the job's questions with the answer given for it, at submit
+ * time.
+ *
+ * Storing answers keyed by index while reading the question text live from the
+ * job was wrong in a way that was worse than losing data: editing a job's
+ * questions re-paired every stored answer. Reorder two and the employer reads
+ * "What is your expected salary? — No" and screens on it. The questions are
+ * frozen onto the application instead, so later edits cannot rewrite what
+ * someone said. Answers with no matching question are discarded; questions with
+ * no answer are kept, because "not answered" is itself information.
+ */
+export function snapshotAnswers(
+  questions: readonly string[],
+  answers: Record<string, string>,
+): { question: string; answer: string }[] {
+  return questions.map((question, index) => ({
+    question,
+    answer: answers[String(index)]?.trim() ?? '',
+  }))
+}
+
 type ApplyOutcome =
   | { kind: 'ok'; applicationId: string }
   | { kind: 'no-profile' }
@@ -21,9 +43,15 @@ type ApplyOutcome =
  * Submits an application.
  *
  * Everything happens in one transaction, and the conditions are asserted inside
- * it rather than before it: a job that closes between the page rendering and the
- * submit arriving must not leave an application attached to a role nobody is
- * hiring for.
+ * it rather than before it, so a job that closed while the form was open is
+ * caught at submit rather than at render.
+ *
+ * That narrows the window; it does not close it. Under READ COMMITTED this
+ * findFirst takes no row lock, so a close committing between this read and the
+ * insert still lands an application on a closed job. The harm is small — the
+ * employer sees it and can decline it — and the cost of closing it fully
+ * (SELECT ... FOR UPDATE, or serializable isolation on the hot apply path) is
+ * not worth paying for that. Said plainly here rather than implied away.
  *
  * Applying twice is prevented by the database's unique constraint on
  * (candidateProfileId, jobId), not by reading first. Two submissions arriving
@@ -69,7 +97,7 @@ export async function applyToJob(
           jobId: job.id,
           resumeId: input.resumeId ?? null,
           coverLetter: input.coverLetter ?? null,
-          screeningAnswers: input.screeningAnswers,
+          screeningAnswers: snapshotAnswers(job.screeningQuestions, input.screeningAnswers),
           // Stamped here, from the server's clock. The client sends a boolean
           // saying they ticked the box; when that happened is ours to record.
           consentedAt: new Date(),

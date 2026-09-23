@@ -4,10 +4,7 @@ import { PageHead } from '@/components/layout'
 import { Button, Card, EmptyState, MetricCard } from '@/components/ui'
 import { TrackerRow } from '@/components/applications/tracker-row'
 import { candidateProfileIdFor } from '@/lib/db/repositories/saved-job.repository'
-import {
-  findCandidateApplication,
-  listCandidateApplications,
-} from '@/lib/db/repositories/application.repository'
+import { listCandidateApplications } from '@/lib/db/repositories/application.repository'
 
 export const metadata: Metadata = { title: 'Applications — CareerMate' }
 export const dynamic = 'force-dynamic'
@@ -18,14 +15,6 @@ export default async function TrackerPage() {
   const user = await requireGroup('candidate')
   const profileId = await candidateProfileIdFor(user.id)
   const applications = profileId ? await listCandidateApplications(profileId) : []
-
-  // The detail carries the event history each row expands into. Fetched here
-  // rather than per row so expanding is instant and there is no waterfall.
-  const details = profileId
-    ? await Promise.all(
-        applications.map((a) => findCandidateApplication(profileId, a.id)),
-      )
-    : []
 
   const inProgress = applications.filter((a) => IN_PROGRESS.has(a.stage)).length
   const offers = applications.filter((a) => a.stage === 'OFFER').length
@@ -60,9 +49,9 @@ export default async function TrackerPage() {
           </div>
 
           <ul className="grid list-none gap-3 p-0">
-            {applications.map((application, i) => (
+            {applications.map((application) => (
               <li key={application.id}>
-                <TrackerRow application={application} detail={details[i] ?? null} />
+                <TrackerRow application={application} />
               </li>
             ))}
           </ul>

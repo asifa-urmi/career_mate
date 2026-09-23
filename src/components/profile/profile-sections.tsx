@@ -116,6 +116,8 @@ export function BasicsSection({
  * Kept as one component for experience, education and links because the shape is
  * identical — a form, a list, a delete — and three near-copies is how they drift.
  */
+export type EntryValues = Record<string, string | boolean | undefined>
+
 export function EntrySection({
   title,
   addLabel,
@@ -128,18 +130,30 @@ export function EntrySection({
   addLabel: string
   action: Action
   kind: 'experience' | 'education' | 'link'
-  entries: { id: string; primary: string; secondary: string; tertiary?: string }[]
-  children: (state: ProfileFormState) => React.ReactNode
+  entries: {
+    id: string
+    primary: string
+    secondary: string
+    tertiary?: string
+    values: EntryValues
+  }[]
+  children: (state: ProfileFormState, values: EntryValues) => React.ReactNode
 }) {
   const [state, formAction, pending] = useActionState<ProfileFormState, FormData>(action, {})
-  const [adding, setAdding] = useState(false)
+  // `null` means closed, `''` means adding, an id means editing that row. One
+  // piece of state, so the form cannot be open in two modes at once.
+  const [editing, setEditing] = useState<string | null>(null)
   const [deleting, startDelete] = useTransition()
   const { show } = useToast()
+
+  const open = editing !== null
+  const current = entries.find((e) => e.id === editing)
 
   function remove(id: string) {
     if (!confirm('Remove this entry?')) return
     startDelete(async () => {
       const result = await deleteEntryAction(kind, id)
+      if (!result.error && editing === id) setEditing(null)
       show(result.error ?? 'Removed', result.error ? 'error' : 'success')
     })
   }
@@ -148,12 +162,17 @@ export function EntrySection({
     <Card padded>
       <div className="mb-3.5 flex items-center justify-between gap-3">
         <CardTitle className="mb-0">{title}</CardTitle>
-        <Button type="button" variant="ghost" size="sm" onClick={() => setAdding((v) => !v)}>
-          {adding ? 'Cancel' : addLabel}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setEditing((v) => (v === '' ? null : ''))}
+        >
+          {editing === '' ? 'Cancel' : addLabel}
         </Button>
       </div>
 
-      {entries.length === 0 && !adding && (
+      {entries.length === 0 && !open && (
         <p className="m-0 text-[13px] text-muted">Nothing here yet.</p>
       )}
 
@@ -171,27 +190,46 @@ export function EntrySection({
                   <span className="block text-[11px] text-muted">{entry.tertiary}</span>
                 )}
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={deleting}
-                onClick={() => remove(entry.id)}
-              >
-                Remove
-              </Button>
+              <div className="flex shrink-0 gap-1.5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setEditing((v) => (v === entry.id ? null : entry.id))}
+                >
+                  {editing === entry.id ? 'Cancel' : 'Edit'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={deleting}
+                  onClick={() => remove(entry.id)}
+                >
+                  Remove
+                </Button>
+              </div>
             </li>
           ))}
         </ul>
       )}
 
-      {adding && (
-        <form action={formAction} className="grid gap-4 border-t border-line pt-4">
-          {children(state)}
+      {open && (
+        <form
+          // Remounts when the target changes, so the uncontrolled inputs pick up
+          // the new defaultValues instead of keeping the previous row's text.
+          key={editing}
+          action={formAction}
+          className="grid gap-4 border-t border-line pt-4"
+        >
+          {/* This is what makes the services' upsert-by-id path reachable, and
+              with it the ownership predicate those branches carry. */}
+          {current && <input type="hidden" name="id" value={current.id} />}
+          {children(state, current?.values ?? {})}
           <div className="flex items-center justify-end gap-3">
             <SavedNote state={state} />
             <Button type="submit" size="sm" loading={pending}>
-              Add
+              {current ? 'Save changes' : 'Add'}
             </Button>
           </div>
         </form>

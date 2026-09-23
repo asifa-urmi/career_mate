@@ -6,7 +6,12 @@ import { z } from 'zod'
  * already said. The index is preserved alongside the question list that was
  * shown at the time.
  */
-const screeningAnswers = z.record(z.string(), z.string().trim().max(2000)).default({})
+const screeningAnswers = z
+  .record(z.string(), z.string().trim().max(2000))
+  .default({})
+  // A job caps its questions at ten, so a submit carrying twenty thousand
+  // `screening.N` fields is not a person filling in a form.
+  .refine((v) => Object.keys(v).length <= 10, { message: 'Too many answers for this role' })
 
 export const applicationSchema = z.object({
   jobId: z.string().trim().min(1),

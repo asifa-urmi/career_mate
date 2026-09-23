@@ -21,28 +21,32 @@ const VALID_STAGES = new Set(APPLICATION_STAGES.map((s) => s.value as string))
 export default async function CandidatesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ jobId?: string; stage?: string }>
+  searchParams: Promise<{ jobId?: string | string[]; stage?: string | string[] }>
 }) {
   const user = await requireGroup('employer')
   const companyId = await companyIdForUser(user.id)
 
   const params = await searchParams
+  // A repeated query key — ?jobId=a&jobId=b — arrives as an array. Handing that
+  // to Prisma for a String column is a 500 on an authenticated page.
+  const rawJobId = Array.isArray(params.jobId) ? params.jobId[0] : params.jobId
+  const rawStage = Array.isArray(params.stage) ? params.stage[0] : params.stage
+
   // A crafted stage must not reach Prisma as an invalid enum.
   const stage =
-    params.stage && VALID_STAGES.has(params.stage)
-      ? (params.stage as ApplicationStage)
-      : undefined
+    rawStage && VALID_STAGES.has(rawStage) ? (rawStage as ApplicationStage) : undefined
 
   const [applications, jobs] = companyId
     ? await Promise.all([
-        // jobId is not validated here because the query is already scoped to the
-        // company: another company's job id simply matches nothing.
-        listCompanyApplications(companyId, { jobId: params.jobId, stage }),
+        // jobId needs no allow-list: the query ANDs `job: { companyId }`, so
+        // another company's id matches zero rows and leaks nothing. It does need
+        // to be a string, which is what the array check above is for.
+        listCompanyApplications(companyId, { jobId: rawJobId, stage }),
         listCompanyJobs(companyId),
       ])
     : [[], []]
 
-  const activeJob = jobs.find((j) => j.id === params.jobId)
+  const activeJob = jobs.find((j) => j.id === rawJobId)
 
   return (
     <>
@@ -57,26 +61,26 @@ export default async function CandidatesPage({
       />
 
       <div className="mb-5 flex flex-wrap gap-2">
-        <Pill href="/candidates" label="All roles" active={!params.jobId} />
+        <Pill href="/candidates" label="All roles" active={!rawJobId} />
         {jobs.map((job) => (
           <Pill
             key={job.id}
             href={`/candidates?jobId=${job.id}`}
             label={`${job.title} (${job.applicantCount})`}
-            active={params.jobId === job.id}
+            active={rawJobId === job.id}
           />
         ))}
       </div>
 
       <div className="mb-6 flex flex-wrap gap-2">
         <Pill
-          href={params.jobId ? `/candidates?jobId=${params.jobId}` : '/candidates'}
+          href={rawJobId ? `/candidates?jobId=${rawJobId}` : '/candidates'}
           label="Any stage"
           active={!stage}
         />
         {APPLICATION_STAGES.map((s) => {
           const query = new URLSearchParams()
-          if (params.jobId) query.set('jobId', params.jobId)
+          if (rawJobId) query.set('jobId', rawJobId)
           query.set('stage', s.value)
           return (
             <Pill

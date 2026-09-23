@@ -11,6 +11,7 @@ import {
   companyIdForUser,
   findCompanyApplication,
 } from '@/lib/db/repositories/employer.repository'
+import { toScreeningAnswers } from '@/lib/db/repositories/application.repository'
 
 export const metadata: Metadata = { title: 'Candidate — CareerMate' }
 export const dynamic = 'force-dynamic'
@@ -39,7 +40,10 @@ export default async function CandidateDetailPage({
   if (!application) notFound()
 
   const candidate = application.candidateProfile
-  const answers = (application.screeningAnswers ?? {}) as Record<string, string>
+  // Read from the application, not the job: the questions can be edited after
+  // someone applies, and re-pairing their answers would have the employer
+  // screening on evidence the candidate never gave.
+  const screening = toScreeningAnswers(application.screeningAnswers)
   const now = new Date()
 
   return (
@@ -78,15 +82,18 @@ export default async function CandidateDetailPage({
             )}
           </Card>
 
-          {application.job.screeningQuestions.length > 0 && (
+          {screening.length > 0 && (
             <Card padded>
               <CardTitle>Screening answers</CardTitle>
+              <p className="m-0 mb-3 text-xs text-muted">
+                The questions as they were when this person applied.
+              </p>
               <dl className="m-0 grid gap-2.5">
-                {application.job.screeningQuestions.map((q, i) => (
-                  <div key={q} className="rounded-[10px] border border-line p-3.5">
-                    <dt className="text-[13px] font-bold">{q}</dt>
+                {screening.map((entry, i) => (
+                  <div key={i} className="rounded-[10px] border border-line p-3.5">
+                    <dt className="text-[13px] font-bold">{entry.question}</dt>
                     <dd className="m-0 mt-1.5 text-[13px] leading-relaxed text-[#626d86]">
-                      {answers[String(i)] || <span className="text-muted">Not answered</span>}
+                      {entry.answer || <span className="text-muted">Not answered</span>}
                     </dd>
                   </div>
                 ))}

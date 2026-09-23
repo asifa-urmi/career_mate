@@ -40,9 +40,32 @@ const optionalSalary = z
     message: 'That salary looks too large',
   })
 
-/** And for urls: an empty field is not an invalid url, it is an absent one. */
+/**
+ * An empty field is not an invalid url, it is an absent one.
+ *
+ * Only http and https. Zod's `.url()` accepts `javascript:alert(1)` and
+ * `data:text/html,...`, which become stored XSS the moment a company's website
+ * is rendered as an anchor - and a public company page is the obvious next thing
+ * to build. Same rule as the profile links, for the same reason.
+ */
 const optionalUrl = z
-  .union([z.literal(''), z.string().trim().url('Enter a full address, including https://')])
+  .union([
+    z.literal(''),
+    z
+      .string()
+      .trim()
+      .refine(
+        (v) => {
+          try {
+            const parsed = new URL(v)
+            return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+          } catch {
+            return false
+          }
+        },
+        { message: 'Enter a full address, including https://' },
+      ),
+  ])
   .transform((v) => (v === '' ? undefined : v))
   .optional()
 

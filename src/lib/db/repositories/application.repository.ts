@@ -16,20 +16,45 @@ export type ApplicationRowModel = {
   resumeLabel: string | null
 }
 
+/**
+ * What a candidate is shown about a stage change.
+ *
+ * `note` is deliberately absent. The employer's stage control tells them the
+ * note is "recorded in the history, not shown to the candidate", and they write
+ * their internal reasoning under that promise — so it must not be selected by
+ * any candidate-facing query, not merely hidden by a component that could later
+ * be changed.
+ */
 export type ApplicationEventModel = {
   id: string
   fromStage: ApplicationStage | null
   toStage: ApplicationStage
-  note: string | null
   at: Date
   atLabel: string
 }
 
+/** A question and the answer given for it, frozen at submit time. */
+export type ScreeningAnswer = { question: string; answer: string }
+
 export type ApplicationDetailModel = ApplicationRowModel & {
   coverLetter: string | null
-  screeningQuestions: string[]
-  screeningAnswers: Record<string, string>
+  /**
+   * Read from the application, never from the job. The job's questions can be
+   * edited after someone applies; what they were asked cannot.
+   */
+  screening: ScreeningAnswer[]
   events: ApplicationEventModel[]
+}
+
+/** Json from the database is unknown until proved otherwise. */
+export function toScreeningAnswers(value: unknown): ScreeningAnswer[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry) => {
+    if (typeof entry !== 'object' || entry === null) return []
+    const { question, answer } = entry as Record<string, unknown>
+    if (typeof question !== 'string') return []
+    return [{ question, answer: typeof answer === 'string' ? answer : '' }]
+  })
 }
 
 const ROW_SELECT = {
@@ -80,17 +105,50 @@ function toRowModel(a: Row, now: Date): ApplicationRowModel {
   }
 }
 
+export type TrackedApplication = ApplicationRowModel & {
+  screening: ScreeningAnswer[]
+  events: ApplicationEventModel[]
+}
+
+/**
+ * The tracker's whole payload in one query.
+ *
+ * The page previously listed the rows and then re-read each one individually for
+ * its history: 61 queries for 60 applications, with every detail payload
+ * serialised into the response whether or not the person expanded it. The
+ * history comes back with the row instead.
+ */
 export async function listCandidateApplications(
   candidateProfileId: string,
-): Promise<ApplicationRowModel[]> {
+  take = 100,
+): Promise<TrackedApplication[]> {
   const rows = await prisma.application.findMany({
     where: { candidateProfileId },
-    select: ROW_SELECT,
     orderBy: { updatedAt: 'desc' },
+    take,
+    select: {
+      ...ROW_SELECT,
+      screeningAnswers: true,
+      events: {
+        orderBy: { createdAt: 'desc' },
+        // No `note` - see ApplicationEventModel.
+        select: { id: true, fromStage: true, toStage: true, createdAt: true },
+      },
+    },
   })
 
   const now = new Date()
-  return rows.map((r) => toRowModel(r, now))
+  return rows.map((row) => ({
+    ...toRowModel(row, now),
+    screening: toScreeningAnswers(row.screeningAnswers),
+    events: row.events.map((e) => ({
+      id: e.id,
+      fromStage: e.fromStage,
+      toStage: e.toStage,
+      at: e.createdAt,
+      atLabel: relativeTime(e.createdAt, now),
+    })),
+  }))
 }
 
 /**
@@ -116,13 +174,13 @@ export async function findCandidateApplication(
           title: true,
           category: true,
           location: true,
-          screeningQuestions: true,
           company: { select: { name: true, logoInitials: true } },
         },
       },
       events: {
         orderBy: { createdAt: 'desc' },
-        select: { id: true, fromStage: true, toStage: true, note: true, createdAt: true },
+        // No `note` — see ApplicationEventModel.
+        select: { id: true, fromStage: true, toStage: true, createdAt: true },
       },
     },
   })
@@ -133,13 +191,11 @@ export async function findCandidateApplication(
   return {
     ...toRowModel(row, now),
     coverLetter: row.coverLetter,
-    screeningQuestions: row.job.screeningQuestions,
-    screeningAnswers: (row.screeningAnswers ?? {}) as Record<string, string>,
+    screening: toScreeningAnswers(row.screeningAnswers),
     events: row.events.map((e) => ({
       id: e.id,
       fromStage: e.fromStage,
       toStage: e.toStage,
-      note: e.note,
       at: e.createdAt,
       atLabel: relativeTime(e.createdAt, now),
     })),

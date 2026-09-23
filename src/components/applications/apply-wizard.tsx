@@ -97,8 +97,10 @@ export function ApplyWizard({
           <CardTitle>{hasQuestions ? 'Screening questions' : 'No screening questions'}</CardTitle>
           {hasQuestions ? (
             <div className="grid gap-4">
+              {/* Keyed by index: duplicate question text would give duplicate
+                  React keys, and typing in one box can then appear in another. */}
               {screeningQuestions.map((question, i) => (
-                <Field key={question} label={question} htmlFor={`screening-${i}`}>
+                <Field key={i} label={question} htmlFor={`screening-${i}`}>
                   <Textarea
                     id={`screening-${i}`}
                     name={`screening.${i}`}

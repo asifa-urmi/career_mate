@@ -34,6 +34,11 @@ function monthYear(date: Date | null): string {
   return date.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
 }
 
+/** `<input type="date">` wants YYYY-MM-DD, not a locale string. */
+function dateInput(date: Date | null): string {
+  return date ? date.toISOString().slice(0, 10) : ''
+}
+
 export default async function ProfilePage() {
   const user = await requireGroup('candidate')
   const profileId = await candidateProfileIdFor(user.id)
@@ -111,30 +116,68 @@ export default async function ProfilePage() {
               primary: e.title,
               secondary: e.company,
               tertiary: `${monthYear(e.startDate)} — ${e.isCurrent ? 'Present' : monthYear(e.endDate)}`,
+              values: {
+                title: e.title,
+                company: e.company,
+                startDate: dateInput(e.startDate),
+                endDate: dateInput(e.endDate),
+                isCurrent: e.isCurrent,
+                description: e.description ?? '',
+              },
             }))}
           >
-            {(state) => (
+            {(state, v) => (
               <>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Job title" htmlFor="title" error={state.fieldErrors?.title} required>
-                    <Input id="title" name="title" placeholder="Accounts Officer" />
+                    <Input
+                      id="title"
+                      name="title"
+                      defaultValue={String(v.title ?? '')}
+                      placeholder="Accounts Officer"
+                    />
                   </Field>
                   <Field label="Company" htmlFor="company" error={state.fieldErrors?.company} required>
-                    <Input id="company" name="company" placeholder="Meridian Group" />
+                    <Input
+                      id="company"
+                      name="company"
+                      defaultValue={String(v.company ?? '')}
+                      placeholder="Meridian Group"
+                    />
                   </Field>
                   <Field label="Started" htmlFor="startDate" error={state.fieldErrors?.startDate} required>
-                    <Input id="startDate" name="startDate" type="date" />
+                    <Input
+                      id="startDate"
+                      name="startDate"
+                      type="date"
+                      defaultValue={String(v.startDate ?? '')}
+                    />
                   </Field>
                   <Field label="Ended" htmlFor="endDate" error={state.fieldErrors?.endDate}>
-                    <Input id="endDate" name="endDate" type="date" />
+                    <Input
+                      id="endDate"
+                      name="endDate"
+                      type="date"
+                      defaultValue={String(v.endDate ?? '')}
+                    />
                   </Field>
                 </div>
                 <label className="flex items-center gap-2 text-[13px]">
-                  <input type="checkbox" name="isCurrent" className="size-4 accent-[var(--color-blue)]" />
+                  <input
+                    type="checkbox"
+                    name="isCurrent"
+                    defaultChecked={Boolean(v.isCurrent)}
+                    className="size-4 accent-[var(--color-blue)]"
+                  />
                   I still work here
                 </label>
                 <Field label="What you did" htmlFor="description" error={state.fieldErrors?.description}>
-                  <Textarea id="description" name="description" rows={3} />
+                  <Textarea
+                    id="description"
+                    name="description"
+                    rows={3}
+                    defaultValue={String(v.description ?? '')}
+                  />
                 </Field>
               </>
             )}
@@ -150,12 +193,23 @@ export default async function ProfilePage() {
               primary: e.degree,
               secondary: e.institution,
               tertiary: e.endDate ? monthYear(e.endDate) : undefined,
+              values: {
+                degree: e.degree,
+                institution: e.institution,
+                startDate: dateInput(e.startDate),
+                endDate: dateInput(e.endDate),
+              },
             }))}
           >
-            {(state) => (
+            {(state, v) => (
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Degree" htmlFor="degree" error={state.fieldErrors?.degree} required>
-                  <Input id="degree" name="degree" placeholder="BBA in Accounting" />
+                  <Input
+                    id="degree"
+                    name="degree"
+                    defaultValue={String(v.degree ?? '')}
+                    placeholder="BBA in Accounting"
+                  />
                 </Field>
                 <Field
                   label="Institution"
@@ -163,13 +217,28 @@ export default async function ProfilePage() {
                   error={state.fieldErrors?.institution}
                   required
                 >
-                  <Input id="institution" name="institution" placeholder="Dhaka University" />
+                  <Input
+                    id="institution"
+                    name="institution"
+                    defaultValue={String(v.institution ?? '')}
+                    placeholder="Dhaka University"
+                  />
                 </Field>
                 <Field label="Started" htmlFor="startDate" error={state.fieldErrors?.startDate}>
-                  <Input id="startDate" name="startDate" type="date" />
+                  <Input
+                    id="startDate"
+                    name="startDate"
+                    type="date"
+                    defaultValue={String(v.startDate ?? '')}
+                  />
                 </Field>
                 <Field label="Finished" htmlFor="endDate" error={state.fieldErrors?.endDate}>
-                  <Input id="endDate" name="endDate" type="date" />
+                  <Input
+                    id="endDate"
+                    name="endDate"
+                    type="date"
+                    defaultValue={String(v.endDate ?? '')}
+                  />
                 </Field>
               </div>
             )}
@@ -186,15 +255,26 @@ export default async function ProfilePage() {
               id: l.id,
               primary: l.label,
               secondary: l.url,
+              values: { label: l.label, url: l.url },
             }))}
           >
-            {(state) => (
+            {(state, v) => (
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Name" htmlFor="label" error={state.fieldErrors?.label} required>
-                  <Input id="label" name="label" placeholder="Portfolio" />
+                  <Input
+                    id="label"
+                    name="label"
+                    defaultValue={String(v.label ?? '')}
+                    placeholder="Portfolio"
+                  />
                 </Field>
                 <Field label="Address" htmlFor="url" error={state.fieldErrors?.url} required>
-                  <Input id="url" name="url" placeholder="https://example.com" />
+                  <Input
+                    id="url"
+                    name="url"
+                    defaultValue={String(v.url ?? '')}
+                    placeholder="https://example.com"
+                  />
                 </Field>
               </div>
             )}
