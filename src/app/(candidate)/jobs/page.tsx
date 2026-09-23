@@ -5,6 +5,11 @@ import { requireGroup } from '@/lib/auth/require-group'
 import { PageHead } from '@/components/layout'
 import { Button, Card, CardTitle, EmptyState } from '@/components/ui'
 import { JobList } from '@/components/jobs/job-card'
+import { SaveButton } from '@/components/jobs/save-button'
+import {
+  candidateProfileIdFor,
+  savedJobIds,
+} from '@/lib/db/repositories/saved-job.repository'
 import { CATEGORIES } from '@/config/categories'
 import { countPublishedJobs, listPublishedJobs } from '@/lib/db/repositories/job.repository'
 import { cn } from '@/lib/utils/cn'
@@ -20,7 +25,7 @@ export default async function JobsPage({
 }: {
   searchParams: Promise<{ category?: string; q?: string }>
 }) {
-  await requireGroup('candidate')
+  const user = await requireGroup('candidate')
 
   const params = await searchParams
   // A crafted query string must not reach Prisma as an invalid enum.
@@ -30,9 +35,11 @@ export default async function JobsPage({
       : undefined
   const search = params.q?.trim() || undefined
 
-  const [jobs, total] = await Promise.all([
+  const profileId = await candidateProfileIdFor(user.id)
+  const [jobs, total, saved] = await Promise.all([
     listPublishedJobs({ category, search }),
     countPublishedJobs(),
+    profileId ? savedJobIds(profileId) : Promise.resolve(new Set<string>()),
   ])
 
   return (
@@ -90,7 +97,13 @@ export default async function JobsPage({
               />
             </Card>
           ) : (
-            <JobList jobs={jobs} hrefFor={(job) => `/jobs/${job.id}`} />
+            <JobList
+              jobs={jobs}
+              hrefFor={(job) => `/jobs/${job.id}`}
+              actionFor={(job) => (
+                <SaveButton jobId={job.id} saved={saved.has(job.id)} label={false} />
+              )}
+            />
           )}
         </div>
 

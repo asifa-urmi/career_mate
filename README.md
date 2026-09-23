@@ -205,8 +205,8 @@ out and back in. `/admin` is now reachable.
 | Phase | Status | Contents |
 |---|---|---|
 | **P0 Foundation** | Done | Design system, schema, auth with three roles, route protection, onboarding, marketing pages, job board, dashboards |
-| **P1 Core loop** | Next | Job detail, apply flow, tracker, saved jobs, employer post-job and candidate review |
-| **P2 CV + AI** | Planned | CV upload and versions, the AI provider chain, match explanations, coach, interview prep |
+| **P1 Core loop** | Done | Job detail, saved jobs, apply flow, application tracker, candidate profile, employer job posting and management, candidate review with stage transitions, company profile, notifications |
+| **P2 CV + AI** | Next | CV upload and versions, the AI provider chain, match explanations, coach, interview prep |
 | **P3 Remainder** | Planned | Messaging, notifications, pipeline board, analytics, admin moderation |
 
 Pages that belong to a later phase exist and say so, rather than returning a 404

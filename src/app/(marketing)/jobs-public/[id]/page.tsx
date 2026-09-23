@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui'
+import { getCurrentUser } from '@/lib/auth/session'
 import { Footer, PublicNav } from '@/components/layout'
 import { JobDetail } from '@/components/jobs/job-detail'
 
@@ -10,10 +11,11 @@ export default async function PublicJobDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+  const user = await getCurrentUser()
 
   return (
     <>
-      <PublicNav />
+      <PublicNav user={user} />
       <div className="mx-auto w-[min(1180px,calc(100%-32px))] py-10">
         <JobDetail
           jobId={id}

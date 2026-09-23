@@ -17,12 +17,14 @@ export function AppShell({
   userName,
   userSubtitle,
   primaryAction,
+  unreadCount = 0,
   children,
 }: {
   role: Role
   userName: string
   userSubtitle: string
   primaryAction?: { href: string; label: string }
+  unreadCount?: number
   children: React.ReactNode
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -78,8 +80,26 @@ export function AppShell({
           </form>
 
           <div className="flex items-center gap-2.5">
-            <Button href="/notifications" variant="ghost" size="sm" aria-label="Notifications">
+            <Button
+              href="/notifications"
+              variant="ghost"
+              size="sm"
+              className="relative"
+              aria-label={
+                unreadCount > 0
+                  ? `Notifications, ${unreadCount} unread`
+                  : 'Notifications'
+              }
+            >
               ◌
+              {unreadCount > 0 && (
+                <span
+                  className="absolute -top-1 -right-1 grid min-w-[18px] place-items-center rounded-full bg-danger px-1 text-[10px] font-extrabold text-white"
+                  aria-hidden="true"
+                >
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </Button>
             {primaryAction && (
               <Button href={primaryAction.href} size="sm" className="hidden sm:inline-flex">

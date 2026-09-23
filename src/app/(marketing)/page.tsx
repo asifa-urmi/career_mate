@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui'
+import { getCurrentUser } from '@/lib/auth/session'
 import { PublicNav, Footer } from '@/components/layout'
 import { Hero } from '@/components/marketing/hero'
 import {
@@ -20,7 +21,8 @@ import {
 export const dynamic = 'force-dynamic'
 
 export default async function LandingPage() {
-  const [previewJobs, counts, jobCount] = await Promise.all([
+  const [user, previewJobs, counts, jobCount] = await Promise.all([
+    getCurrentUser(),
     listPublishedJobs({ take: 4 }),
     countJobsByCategory(),
     countPublishedJobs(),
@@ -28,7 +30,7 @@ export default async function LandingPage() {
 
   return (
     <>
-      <PublicNav showSectionLinks />
+      <PublicNav showSectionLinks user={user} />
 
       <Hero previewJobs={previewJobs} />
       <StatsBar sectorCount={CATEGORIES.length - 1} jobCount={jobCount} />
