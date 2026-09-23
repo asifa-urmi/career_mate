@@ -65,8 +65,9 @@ export function ApplyWizard({
                 profile, your answers and your cover letter.
               </p>
               <Suggestion>
-                CV upload arrives with the AI features. Adding one later does not change
-                applications you have already sent.
+                You can upload one from the CV &amp; Resume page at any time. Adding a CV later
+                does not change applications you have already sent, so it is worth doing before
+                the next one.
               </Suggestion>
             </>
           ) : (

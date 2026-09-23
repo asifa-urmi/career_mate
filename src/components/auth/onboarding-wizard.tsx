@@ -30,6 +30,9 @@ export function OnboardingWizard({ action }: { action: Action }) {
   const [state, formAction, pending] = useActionState<SetupFormState, FormData>(action, {})
   const [step, setStep] = useState(1)
   const [sector, setSector] = useState<string>('')
+  // Shown back under the drop zone, so the file is visibly attached two steps
+  // later when the wizard is finally submitted.
+  const [resumeName, setResumeName] = useState<string | null>(null)
 
   // A server-side rejection means a field the wizard already passed is wrong.
   // Dropping the person back to step one would lose the rest of their answers,
@@ -159,16 +162,17 @@ export function OnboardingWizard({ action }: { action: Action }) {
         <div className={cn(step !== 3 && 'hidden')}>
           <h1 className="m-0 mb-2 font-display text-[30px] font-extrabold">Add your CV</h1>
           <p className="m-0 mb-5 text-sm leading-relaxed text-muted">
-            CV upload and parsing arrive with the AI features. You can finish setting up now and
-            add your CV from the CV &amp; Resume page whenever it suits you.
+            Optional, and you can add or replace it later from the CV &amp; Resume page. With one
+            on file, applying is a couple of clicks and CareerMate can match you against roles on
+            what you have actually done.
           </p>
           <UploadBox
+            name="resume"
             accept={ACCEPTED_RESUME_MIME}
             acceptExtensions={ACCEPTED_RESUME_EXTENSIONS}
             maxBytes={MAX_RESUME_BYTES}
-            onFile={() => undefined}
-            disabled
-            hint="Not yet available"
+            onFile={(file) => setResumeName(file.name)}
+            hint={resumeName ?? 'PDF or DOCX'}
           />
           <Suggestion>
             <b>How AI is used here:</b> CareerMate may point out information your CV is missing.

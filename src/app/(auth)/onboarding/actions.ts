@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache'
 import { requireUser } from '@/lib/auth/guards'
 import { companySetupSchema, onboardingSchema } from '@/lib/validation/onboarding.schema'
 import { completeCompanySetup, completeOnboarding } from '@/server/services/onboarding.service'
+import { uploadResume } from '@/server/services/resume.service'
+import { attachedResume } from '@/lib/validation/attached-file'
 
 export type SetupFormState = {
   fieldErrors?: Record<string, string[]>
@@ -43,8 +45,31 @@ export async function completeOnboardingAction(
   const result = await completeOnboarding(user, parsed.data)
   if (!result.ok) return { formError: result.error.message }
 
+  /**
+   * The CV, if one was attached, and only after the profile exists.
+   *
+   * `uploadResume` needs a CandidateProfile to hang the row off, and this is the
+   * request that creates it — so the order is not interchangeable.
+   *
+   * A failure here does not fail onboarding. The profile is already written and
+   * `completeOnboarding` refuses a second run, so returning an error would leave
+   * the person on a wizard they can no longer submit. They land on the CV page
+   * instead, where the file is either listed or can be added again.
+   */
+  const resume = attachedResume(formData.get('resume'))
+  let resumeFailed = false
+
+  if (resume) {
+    const upload = await uploadResume(user, {
+      fileName: resume.name,
+      mimeType: resume.type,
+      bytes: Buffer.from(await resume.arrayBuffer()),
+    })
+    resumeFailed = !upload.ok
+  }
+
   revalidatePath('/', 'layout')
-  redirect('/dashboard')
+  redirect(resumeFailed ? '/resume' : '/dashboard')
 }
 
 export async function completeCompanySetupAction(

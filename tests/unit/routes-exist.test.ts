@@ -4,7 +4,29 @@ import { describe, expect, it } from 'vitest'
 import { navFor, searchActionFor } from '@/config/nav'
 import { canAccess, routeGroupFor } from '@/lib/auth/roles'
 
-const APP_DIR = join(process.cwd(), 'src', 'app')
+const SRC_DIR = join(process.cwd(), 'src')
+const APP_DIR = join(SRC_DIR, 'app')
+
+/**
+ * Source with its comments removed.
+ *
+ * This test is about what a person reads on screen, and a comment is not on
+ * screen. Without this, a comment explaining that "the history and answers
+ * arrive with the row" reads as a promise of future work.
+ */
+function withoutComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1')
+}
+
+/** Every .ts/.tsx file under a directory, for scanning what it says on screen. */
+function collectSources(dir: string, files: string[] = []): string[] {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry)
+    if (statSync(full).isDirectory()) collectSources(full, files)
+    else if (entry.endsWith('.ts') || entry.endsWith('.tsx')) files.push(full)
+  }
+  return files
+}
 
 /**
  * Every route the app actually serves, derived from the files on disk.
@@ -202,26 +224,37 @@ describe('configured routes resolve to real pages', () => {
   })
 
   /**
-   * No page still promises a capability as future work.
+   * Nothing on screen still promises a capability as future work.
    *
-   * The ComingSoon check above only walks nav hrefs, so it cannot see a page
-   * reached by a link from another page. The employer's applicant screen said
-   * "Downloading arrives with CV storage" for a whole phase after CV storage
-   * shipped — the service that authorizes the download existed, passed its
-   * tests, and had no caller on the employer side at all.
+   * Scanned across components as well as pages, because most user-facing copy
+   * lives in a component. An earlier version of this looked only at page files
+   * and passed while the onboarding wizard's CV step said "CV upload and parsing
+   * arrive with the AI features" over a disabled drop zone — a whole phase after
+   * CV upload shipped, on step three of five of the first thing a new account
+   * ever does.
    */
-  it('has no page promising a capability that has already shipped', () => {
+  it('has nothing on screen promising a capability that has already shipped', () => {
     const stale: string[] = []
-    const promises = [/arrives with/i, /coming soon/i, /not yet built/i, /in a later phase/i]
+    const promises = [
+      /arrives? with/i,
+      /coming soon/i,
+      /not yet built/i,
+      /not yet available/i,
+      /in a later phase/i,
+    ]
 
-    for (const [route, file] of ROUTE_FILES) {
-      const source = readFileSync(file, 'utf8')
+    const sources = [...ROUTE_FILES.values(), ...collectSources(join(SRC_DIR, 'components'))]
+
+    for (const file of sources) {
+      const source = withoutComments(readFileSync(file, 'utf8'))
       for (const promise of promises) {
-        if (promise.test(source)) stale.push(`${route} (${promise.source})`)
+        if (promise.test(source)) {
+          stale.push(`${relative(SRC_DIR, file).split(sep).join('/')} (${promise.source})`)
+        }
       }
     }
 
-    expect(stale, `pages promising future work: ${stale.join(', ')}`).toEqual([])
+    expect(stale, `still promising future work: ${stale.join(', ')}`).toEqual([])
   })
 
   // The app shell renders one search form for every role. Pointing it at a group
