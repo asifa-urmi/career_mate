@@ -73,9 +73,12 @@ export const MATCH_WEIGHTS: { key: MatchDimension['key']; label: string; weight:
   { key: 'salary', label: 'Salary', weight: 0.1 },
 ]
 
+/** A dimension's verdict: a 0-100 score, or null when nothing is known. */
+type DimensionScore = [score: number | null, evidence: string]
+
 const normalise = (s: string) => s.trim().toLowerCase()
 
-function scoreSkills(candidate: MatchCandidate, job: MatchJob): [number, string] {
+function scoreSkills(candidate: MatchCandidate, job: MatchJob): DimensionScore {
   const required = job.requiredSkills.map(normalise).filter(Boolean)
   const preferred = job.preferredSkills.map(normalise).filter(Boolean)
 
@@ -106,7 +109,7 @@ function scoreSkills(candidate: MatchCandidate, job: MatchJob): [number, string]
   return [Math.round(combined * 100), evidence]
 }
 
-function scoreSector(candidate: MatchCandidate, job: MatchJob): [number, string] {
+function scoreSector(candidate: MatchCandidate, job: MatchJob): DimensionScore {
   if (candidate.primarySector === job.category) {
     return [100, 'This is the sector you chose to focus on.']
   }
@@ -116,7 +119,7 @@ function scoreSector(candidate: MatchCandidate, job: MatchJob): [number, string]
 
 const LEVEL_ORDER: ExperienceLevel[] = ['ENTRY', 'ONE_TO_THREE', 'THREE_TO_FIVE', 'FIVE_PLUS']
 
-function scoreExperience(candidate: MatchCandidate, job: MatchJob): [number, string] {
+function scoreExperience(candidate: MatchCandidate, job: MatchJob): DimensionScore {
   // The schema carries no required level on a job, so this reads the job type:
   // an internship suits entry level, a permanent role suits anyone.
   if (job.jobType === 'INTERNSHIP') {
@@ -131,7 +134,7 @@ function scoreExperience(candidate: MatchCandidate, job: MatchJob): [number, str
     : [100, 'Your experience level suits a permanent role.']
 }
 
-function scoreLocation(candidate: MatchCandidate, job: MatchJob): [number, string] {
+function scoreLocation(candidate: MatchCandidate, job: MatchJob): DimensionScore {
   if (job.workMode === 'REMOTE') {
     return [100, 'Remote, so your location does not matter.']
   }
@@ -157,7 +160,7 @@ function scoreLocation(candidate: MatchCandidate, job: MatchJob): [number, strin
   return [75, `In ${job.location}, but ${job.workMode.toLowerCase()} rather than your preference.`]
 }
 
-function scoreSalary(candidate: MatchCandidate, job: MatchJob): [number, string] {
+function scoreSalary(candidate: MatchCandidate, job: MatchJob): DimensionScore {
   const floor = candidate.preference?.minSalaryBdt
   if (!floor) return [null, 'You have not set a minimum salary.']
 
@@ -173,8 +176,6 @@ function scoreSalary(candidate: MatchCandidate, job: MatchJob): [number, string]
     'The posted range tops out below the minimum you set.',
   ]
 }
-
-type DimensionScore = [score: number | null, evidence: string]
 
 const SCORERS: Record<
   MatchDimension['key'],
