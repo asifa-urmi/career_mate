@@ -3,6 +3,7 @@ import { Badge, Button, Card, CardTitle, CompanyMark, SkillTag } from '@/compone
 import { categoryLabel } from '@/config/categories'
 import { JOB_TYPES, WORK_MODES } from '@/config/constants'
 import { findPublishedJob } from '@/lib/db/repositories/job.repository'
+import { ReportButton } from '@/components/report/report-button'
 
 const WORK_MODE_LABEL = new Map(WORK_MODES.map((m) => [m.value, m.label]))
 const JOB_TYPE_LABEL = new Map(JOB_TYPES.map((t) => [t.value, t.label]))
@@ -19,11 +20,14 @@ export async function JobDetail({
   cta,
   backHref,
   backLabel,
+  canReport = false,
 }: {
   jobId: string
   cta: React.ReactNode
   backHref: string
   backLabel: string
+  /** Only offered to signed-in people — a report needs someone to attribute it to. */
+  canReport?: boolean
 }) {
   const job = await findPublishedJob(jobId)
 
@@ -142,6 +146,12 @@ export async function JobDetail({
         <Button href={backHref} variant="ghost">
           {backLabel}
         </Button>
+
+        {canReport && (
+          <div>
+            <ReportButton targetType="JOB" targetId={jobId} label="Report this listing" />
+          </div>
+        )}
       </div>
     </div>
   )

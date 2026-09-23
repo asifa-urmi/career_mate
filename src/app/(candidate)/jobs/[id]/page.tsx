@@ -34,6 +34,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
       jobId={id}
       backHref="/jobs"
       backLabel="← All jobs"
+      canReport
       cta={
         <>
           {existingApplication ? (

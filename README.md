@@ -240,10 +240,11 @@ out and back in. `/admin` is now reachable.
 | **P0 Foundation** | Done | Design system, schema, auth with three roles, route protection, onboarding, marketing pages, job board, dashboards |
 | **P1 Core loop** | Done | Job detail, saved jobs, apply flow, application tracker, candidate profile, employer job posting and management, candidate review with stage transitions, company profile, notifications |
 | **P2 CV + AI** | Done | CV upload, versions and private storage with signed links, text extraction, the failover AI provider chain, match scoring, match explanations, CV review, cover letters, interview prep |
-| **P3 Remainder** | Next | Messaging, notifications, pipeline board, analytics, admin moderation |
+| **P3 Remainder** | Done | Two-sided messaging threaded per application, notification centre, employer pipeline board, hiring analytics, admin user and job moderation, the report queue, account settings, data export and deletion |
 
-Pages that belong to a later phase exist and say so, rather than returning a 404
-from a link the sidebar offers.
+Every destination the sidebar offers is a built page. A test walks the nav for
+all three roles and fails if a link has no page behind it, or if the page it
+finds is still a placeholder.
 
 The design document and implementation plans are in
 [`docs/superpowers/`](docs/superpowers/).

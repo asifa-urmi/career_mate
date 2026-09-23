@@ -55,6 +55,11 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   const user = await findUserById(data.user.id)
   if (!user) return null
 
+  // A suspended account is treated as no account. Anything softer — letting them
+  // in and hiding features — leaves a suspended employer still able to reach
+  // their candidates through a route somebody forgot to cover.
+  if (user.suspendedAt) return null
+
   return {
     id: user.id,
     email: user.email,

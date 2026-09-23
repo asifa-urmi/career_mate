@@ -140,3 +140,46 @@ describe('onboarded is derived from the profile, not just the timestamp', () => 
     expect((await getCurrentUser())?.onboarded).toBe(true)
   })
 })
+
+describe('suspension', () => {
+  beforeEach(() => {
+    getUser.mockReset()
+    findUserById.mockReset()
+    getUser.mockResolvedValue({ data: { user: { id: 'uid-1' } }, error: null })
+  })
+
+  // Anything softer than "no session" — letting them in and hiding features —
+  // leaves a suspended employer able to reach their candidates through whatever
+  // route somebody forgot to cover.
+  it('treats a suspended account as no account at all', async () => {
+    findUserById.mockResolvedValue({
+      id: 'uid-1',
+      email: 'a@b.com',
+      name: 'A',
+      role: 'EMPLOYER',
+      onboardedAt: new Date(),
+      suspendedAt: new Date(),
+      suspendedReason: 'Spam listings',
+      candidateProfile: null,
+      employerProfile: { id: 'ep-1' },
+    })
+
+    expect(await getCurrentUser()).toBeNull()
+  })
+
+  it('lets a reinstated account back in', async () => {
+    findUserById.mockResolvedValue({
+      id: 'uid-1',
+      email: 'a@b.com',
+      name: 'A',
+      role: 'EMPLOYER',
+      onboardedAt: new Date(),
+      suspendedAt: null,
+      suspendedReason: null,
+      candidateProfile: null,
+      employerProfile: { id: 'ep-1' },
+    })
+
+    expect((await getCurrentUser())?.role).toBe('EMPLOYER')
+  })
+})

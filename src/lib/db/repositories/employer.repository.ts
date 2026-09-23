@@ -1,4 +1,10 @@
-import type { ApplicationStage, JobCategory, JobStatus, ModerationStatus } from '@prisma/client'
+import type {
+  ApplicationStage,
+  JobCategory,
+  JobStatus,
+  ModerationStatus,
+  Role,
+} from '@prisma/client'
 import { prisma } from '@/lib/db/prisma'
 import { formatTaka, relativeTime } from '@/lib/utils/format'
 
@@ -270,4 +276,81 @@ export async function moderationCounts(): Promise<Record<ModerationStatus, numbe
   }
   for (const row of rows) counts[row.moderation] = row._count._all
   return counts
+}
+
+export type AdminUserRow = {
+  id: string
+  name: string
+  email: string
+  role: Role
+  suspended: boolean
+  suspendedReason: string | null
+  joinedLabel: string
+  applications: number
+  postedJobs: number
+}
+
+/** Every account, newest first, for the admin screen. */
+export async function listUsersForAdmin(
+  filter: { role?: Role; suspended?: boolean; search?: string } = {},
+): Promise<AdminUserRow[]> {
+  const users = await prisma.user.findMany({
+    where: {
+      ...(filter.role ? { role: filter.role } : {}),
+      ...(filter.suspended === undefined
+        ? {}
+        : filter.suspended
+          ? { suspendedAt: { not: null } }
+          : { suspendedAt: null }),
+      ...(filter.search
+        ? {
+            OR: [
+              { name: { contains: filter.search, mode: 'insensitive' } },
+              { email: { contains: filter.search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      suspendedAt: true,
+      suspendedReason: true,
+      createdAt: true,
+      _count: { select: { postedJobs: true } },
+      candidateProfile: { select: { _count: { select: { applications: true } } } },
+    },
+  })
+
+  const now = new Date()
+  return users.map((u) => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    role: u.role,
+    suspended: u.suspendedAt !== null,
+    suspendedReason: u.suspendedReason,
+    joinedLabel: relativeTime(u.createdAt, now),
+    applications: u.candidateProfile?._count.applications ?? 0,
+    postedJobs: u._count.postedJobs,
+  }))
+}
+
+export async function adminCounts(): Promise<{
+  candidates: number
+  employers: number
+  admins: number
+  suspended: number
+}> {
+  const [candidates, employers, admins, suspended] = await Promise.all([
+    prisma.user.count({ where: { role: 'CANDIDATE' } }),
+    prisma.user.count({ where: { role: 'EMPLOYER' } }),
+    prisma.user.count({ where: { role: 'ADMIN' } }),
+    prisma.user.count({ where: { suspendedAt: { not: null } } }),
+  ])
+  return { candidates, employers, admins, suspended }
 }

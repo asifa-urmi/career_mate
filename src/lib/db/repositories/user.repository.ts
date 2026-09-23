@@ -14,6 +14,8 @@ const SESSION_SELECT = {
   name: true,
   role: true,
   onboardedAt: true,
+  suspendedAt: true,
+  suspendedReason: true,
   candidateProfile: { select: { id: true } },
   employerProfile: { select: { id: true } },
 } as const
