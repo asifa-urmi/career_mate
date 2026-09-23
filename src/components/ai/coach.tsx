@@ -96,6 +96,7 @@ export function AiCoach({ jobs }: { jobs: CoachJobOption[] }) {
             className="mt-4"
             providerLabel={reply.providerLabel}
             usedFallback={reply.usedFallback}
+            fallbackReason={reply.fallbackReason}
           >
             <p className="m-0 text-[13px] leading-relaxed whitespace-pre-wrap">
               {reply.data.reply}
@@ -168,6 +169,7 @@ export function AiCoach({ jobs }: { jobs: CoachJobOption[] }) {
               className="mt-4"
               providerLabel={letter.providerLabel}
               usedFallback={letter.usedFallback}
+              fallbackReason={letter.fallbackReason}
             >
               <p className="m-0 text-[13px] leading-relaxed whitespace-pre-wrap">
                 {letter.data.draft}
@@ -184,6 +186,7 @@ export function AiCoach({ jobs }: { jobs: CoachJobOption[] }) {
               className="mt-4"
               providerLabel={prep.providerLabel}
               usedFallback={prep.usedFallback}
+              fallbackReason={prep.fallbackReason}
             >
               {prep.data.questions.length === 0 ? (
                 <p className="m-0 text-[13px] text-muted">No questions were produced.</p>

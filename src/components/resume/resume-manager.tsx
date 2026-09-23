@@ -238,6 +238,7 @@ export function ResumeManager({ resumes }: { resumes: ResumeItem[] }) {
               className="mt-4"
               providerLabel={review.providerLabel}
               usedFallback={review.usedFallback}
+              fallbackReason={review.fallbackReason}
             >
               <p className="m-0 text-[13px] leading-relaxed">{review.review.summary}</p>
               {review.review.suggestions.length > 0 && (

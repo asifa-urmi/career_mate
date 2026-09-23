@@ -102,6 +102,8 @@ export type ReviewState = {
   review?: CvReview
   providerLabel?: string
   usedFallback?: boolean
+  /** Only meaningful when `usedFallback`: no key anywhere, or every key spent. */
+  fallbackReason?: 'unconfigured' | 'exhausted'
   error?: string
 }
 
@@ -123,5 +125,6 @@ export async function reviewCvAction(): Promise<ReviewState> {
     review: result.value.data,
     providerLabel: result.value.providerLabel,
     usedFallback: result.value.usedFallback,
+    fallbackReason: result.value.fallbackReason,
   }
 }

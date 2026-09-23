@@ -12,11 +12,18 @@ import { cn } from '@/lib/utils/cn'
 export function AiPanel({
   providerLabel,
   usedFallback,
+  fallbackReason,
   className,
   children,
 }: {
   providerLabel?: string | undefined
   usedFallback?: boolean | undefined
+  /**
+   * Which problem it is. "No key anywhere" and "every key exhausted" need
+   * different actions from whoever runs the site, and saying the second when the
+   * first is true sends them hunting for a quota problem that does not exist.
+   */
+  fallbackReason?: 'unconfigured' | 'exhausted' | undefined
   className?: string
   children: React.ReactNode
 }) {
@@ -48,8 +55,9 @@ export function AiPanel({
 
       {usedFallback && (
         <p className="m-0 mt-3 text-[11px] leading-relaxed text-[#8b5f10]">
-          Every configured AI provider is rate limited or out of quota, so this is a fixed
-          message rather than a generated answer. Nothing here was written by a model.
+          {fallbackReason === 'unconfigured'
+            ? 'No AI provider is configured for this site, so this is a fixed message rather than a generated answer. Nothing here was written by a model.'
+            : 'Every configured AI provider is rate limited or out of quota, so this is a fixed message rather than a generated answer. Nothing here was written by a model.'}
         </p>
       )}
     </div>

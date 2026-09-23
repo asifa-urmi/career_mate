@@ -16,7 +16,10 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['tests/**/*.test.ts'],
+    // .tsx too, so a component can be rendered in a test — a page that fails
+    // while every query it makes runs clean is failing in the render, and no
+    // query-level test can see that.
+    include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
     reporters: ['default'],
   },
 })

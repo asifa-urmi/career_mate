@@ -20,6 +20,8 @@ export type AiPanelState<T> = {
   data?: T
   providerLabel?: string
   usedFallback?: boolean
+  /** Only meaningful when `usedFallback`: no key anywhere, or every key spent. */
+  fallbackReason?: 'unconfigured' | 'exhausted'
   error?: string
 }
 
@@ -42,6 +44,7 @@ export async function askCoachAction(question: string): Promise<AiPanelState<Coa
     data: result.value.data,
     providerLabel: result.value.providerLabel,
     usedFallback: result.value.usedFallback,
+    fallbackReason: result.value.fallbackReason,
   }
 }
 
@@ -61,6 +64,7 @@ export async function explainMatchAction(
     data: result.value.data,
     providerLabel: result.value.providerLabel,
     usedFallback: result.value.usedFallback,
+    fallbackReason: result.value.fallbackReason,
   }
 }
 
@@ -78,6 +82,7 @@ export async function coverLetterAction(jobId: string): Promise<AiPanelState<Cov
     data: result.value.data,
     providerLabel: result.value.providerLabel,
     usedFallback: result.value.usedFallback,
+    fallbackReason: result.value.fallbackReason,
   }
 }
 
@@ -97,5 +102,6 @@ export async function interviewPrepAction(
     data: result.value.data,
     providerLabel: result.value.providerLabel,
     usedFallback: result.value.usedFallback,
+    fallbackReason: result.value.fallbackReason,
   }
 }

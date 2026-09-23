@@ -6,6 +6,7 @@ import { appError } from '@/lib/utils/errors'
 import { err, ok, type Result } from '@/lib/utils/result'
 import type { SessionUser } from '@/lib/auth/session'
 import { completeWithFailover } from '@/lib/ai/router'
+import { fallbackReason } from '@/lib/ai/providers/mock'
 import type { AiFeature, AiMessage } from '@/lib/ai/types'
 import { rateLimitMessage, windowStart, withinLimit } from '@/lib/ai/rate-limit'
 import {
@@ -32,6 +33,8 @@ export type AiResult<T> = {
   providerId: string
   providerLabel: string
   usedFallback: boolean
+  /** Only meaningful when `usedFallback`: which problem it was. */
+  fallbackReason?: 'unconfigured' | 'exhausted'
 }
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -88,6 +91,7 @@ async function run<T extends z.ZodType>(
     providerId: outcome.response.providerId,
     providerLabel: PROVIDER_LABELS[outcome.response.providerId] ?? outcome.response.providerId,
     usedFallback: outcome.usedFallback,
+    ...(outcome.usedFallback ? { fallbackReason: fallbackReason() } : {}),
   })
 }
 
