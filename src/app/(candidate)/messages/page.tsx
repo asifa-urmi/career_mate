@@ -25,6 +25,7 @@ export default async function MessagesPage() {
         description="Conversations with employers about roles you applied to."
       />
       <Inbox
+        jobHrefFor={(id) => `/jobs/${id}`}
         conversations={conversations}
         initial={initial}
         emptyBody="When an employer gets in touch about one of your applications, the conversation appears here."

@@ -183,6 +183,29 @@ describe('configured routes resolve to real pages', () => {
     )
   })
 
+  /**
+   * No page still promises a capability as future work.
+   *
+   * The ComingSoon check above only walks nav hrefs, so it cannot see a page
+   * reached by a link from another page. The employer's applicant screen said
+   * "Downloading arrives with CV storage" for a whole phase after CV storage
+   * shipped — the service that authorizes the download existed, passed its
+   * tests, and had no caller on the employer side at all.
+   */
+  it('has no page promising a capability that has already shipped', () => {
+    const stale: string[] = []
+    const promises = [/arrives with/i, /coming soon/i, /not yet built/i, /in a later phase/i]
+
+    for (const [route, file] of ROUTE_FILES) {
+      const source = readFileSync(file, 'utf8')
+      for (const promise of promises) {
+        if (promise.test(source)) stale.push(`${route} (${promise.source})`)
+      }
+    }
+
+    expect(stale, `pages promising future work: ${stale.join(', ')}`).toEqual([])
+  })
+
   // The app shell renders one search form for every role. Pointing it at a group
   // a role cannot enter discards their query and bounces them home.
   it('points the shell search at a route every signed-in role can reach', () => {

@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionUser } from '@/lib/auth/session'
+import { RATE_LIMITS } from '@/lib/ai/rate-limit'
 
 const createInteraction = vi.fn()
+const countInteractions = vi.fn()
 const complete = vi.fn()
 
 vi.mock('@/lib/db/prisma', () => ({
-  prisma: { aiInteraction: { create: createInteraction } },
+  prisma: { aiInteraction: { create: createInteraction, count: countInteractions } },
 }))
 vi.mock('@/lib/ai/router', () => ({ completeWithFailover: complete }))
 
@@ -66,8 +68,10 @@ function answered(json: unknown, providerId = 'gemini', usedFallback = false) {
 
 beforeEach(() => {
   createInteraction.mockReset()
+  countInteractions.mockReset()
   complete.mockReset()
   createInteraction.mockResolvedValue({ id: 'ai-1' })
+  countInteractions.mockResolvedValue(0)
   complete.mockResolvedValue(
     answered({ summary: 'A strong fit.', strengths: ['Excel'], gaps: [] }),
   )
@@ -268,5 +272,71 @@ describe('interviewQuestions and draftCoverLetter', () => {
 
     const prompt = JSON.stringify(complete.mock.calls[0]?.[0]?.messages ?? [])
     expect(prompt).toMatch(/leave it out/i)
+  })
+})
+
+/**
+ * One account must not be able to spend the whole platform's allowance.
+ *
+ * The provider keys are a single free tier shared by everyone. The cooldowns
+ * react to a provider that has already refused — they do not stop one account
+ * from getting it there. A signed-in candidate looping one action a few hundred
+ * times exhausted Gemini, then Groq, then Mistral, then OpenRouter, and every
+ * other user saw the offline fallback for the next quarter of an hour.
+ */
+describe('the per-user rate limit', () => {
+  it('lets an ordinary request through', async () => {
+    const result = await reviewCv(user(), candidate, null)
+
+    expect(result.ok).toBe(true)
+    expect(complete).toHaveBeenCalled()
+  })
+
+  it('refuses once the hour is used up, without calling a provider', async () => {
+    countInteractions.mockResolvedValue(RATE_LIMITS['cv-review'])
+
+    const result = await reviewCv(user(), candidate, null)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('RATE_LIMITED')
+    expect(complete).not.toHaveBeenCalled()
+  })
+
+  it('tells the person what the limit was', async () => {
+    countInteractions.mockResolvedValue(RATE_LIMITS['cv-review'])
+
+    const result = await reviewCv(user(), candidate, null)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.message).toContain(String(RATE_LIMITS['cv-review']))
+  })
+
+  it('counts this user only, and only this feature, over the last hour', async () => {
+    await reviewCv(user(), candidate, null)
+
+    const where = countInteractions.mock.calls[0]?.[0]?.where
+    expect(where).toMatchObject({ userId: 'uid-1', feature: 'cv-review' })
+    expect(where?.createdAt?.gte).toBeInstanceOf(Date)
+  })
+
+  // Otherwise running out of cover letters would also cost you interview prep.
+  it('rations each feature separately', async () => {
+    countInteractions.mockResolvedValue(RATE_LIMITS['cover-letter'])
+
+    const blocked = await draftCoverLetter(user(), candidate, job)
+    expect(blocked.ok).toBe(false)
+
+    countInteractions.mockResolvedValue(0)
+    const allowed = await interviewQuestions(user(), candidate, job)
+    expect(allowed.ok).toBe(true)
+  })
+
+  // A counting query that fails must not take the feature down with it.
+  it('lets the request through when the count itself fails', async () => {
+    countInteractions.mockRejectedValue(new Error('db down'))
+
+    const result = await reviewCv(user(), candidate, null)
+
+    expect(result.ok).toBe(true)
   })
 })

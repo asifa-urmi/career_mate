@@ -108,8 +108,8 @@ generating new SQL on your machine:
 npm run db:deploy
 ```
 
-That runs two migrations. The first creates the tables. The second is the one
-that matters for safety: **`20260923000001_rls_deny_all`**.
+That runs every committed migration in order. The first creates the tables. The
+second is the one that matters for safety: **`20260923000001_rls_deny_all`**.
 
 Supabase grants every table in the `public` schema to the `anon` role by
 default, and the anon key is deliberately public — it ships inside the browser
@@ -121,8 +121,13 @@ reads the role from exactly that row.
 
 This app never uses that REST API; all database access goes through Prisma on
 the server, behind service-layer authorization. So the migration enables and
-forces RLS on all 21 tables, revokes the public grants, and creates no policies
-at all. Nothing is reachable through the public API.
+forces RLS on every table, revokes the public grants, and creates no policies at
+all. Nothing is reachable through the public API.
+
+A migration that adds a table carries its own deny-all block, and
+`tests/unit/rls-migration.test.ts` reads every migration and fails if any table
+created by any of them is missing one — so a table added later cannot quietly
+escape it.
 
 `npm test` fails if a future table is added without the same treatment.
 

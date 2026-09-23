@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db/prisma'
 import { appError } from '@/lib/utils/errors'
 import { err, ok, type Result } from '@/lib/utils/result'
 import type { SessionUser } from '@/lib/auth/session'
+import { notifyUser } from '@/lib/db/repositories/notification.repository'
 import { stageLabel } from '@/config/constants'
 
 /**
@@ -99,14 +100,11 @@ export async function changeApplicationStage(
         },
       })
 
-      await tx.notification.create({
-        data: {
-          userId: application.candidateProfile.userId,
-          type: 'APPLICATION_UPDATE',
-          title: `${stageLabel(toStage)}: ${application.job.title}`,
-          body: `${application.job.company.name} moved your application for ${application.job.title} to ${stageLabel(toStage).toLowerCase()}.`,
-          href: '/tracker',
-        },
+      await notifyUser(tx, application.candidateProfile.userId, {
+        type: 'APPLICATION_UPDATE',
+        title: `${stageLabel(toStage)}: ${application.job.title}`,
+        body: `${application.job.company.name} moved your application for ${application.job.title} to ${stageLabel(toStage).toLowerCase()}.`,
+        href: '/tracker',
       })
 
       return { kind: 'ok' }

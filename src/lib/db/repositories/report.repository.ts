@@ -65,23 +65,27 @@ export async function listReports(status?: ReportStatus): Promise<ReportRow[]> {
   ])
 
   const jobById = new Map(jobs.map((j) => [j.id, `${j.title} — ${j.company.name}`]))
-  const userById = new Map(users.map((u) => [u.id, `${u.name} (${u.email})`]))
+  const userById = new Map(users.map((u) => [u.id, { label: `${u.name} (${u.email})`, email: u.email }]))
 
   const now = new Date()
 
   return reports.map((r) => {
-    const label =
-      r.targetType === 'JOB' ? jobById.get(r.targetId) : userById.get(r.targetId)
+    const job = r.targetType === 'JOB' ? jobById.get(r.targetId) : undefined
+    const reported = r.targetType === 'USER' ? userById.get(r.targetId) : undefined
+    const label = job ?? reported?.label
 
     return {
       id: r.id,
       targetType: r.targetType,
       targetId: r.targetId,
       targetLabel: label ?? null,
+      // The email is carried through rather than picked back out of the label by
+      // splitting on a bracket — a person named "Rafat (Rafi)" produced a search
+      // for "Rafi", and the admin's link found nobody.
       targetHref: label
         ? r.targetType === 'JOB'
           ? `/jobs-public/${r.targetId}`
-          : `/admin/users?q=${encodeURIComponent(userById.get(r.targetId)?.split('(')[1]?.replace(')', '') ?? '')}`
+          : `/admin/users?q=${encodeURIComponent(reported?.email ?? '')}`
         : null,
       reason: r.reason,
       detail: r.detail,

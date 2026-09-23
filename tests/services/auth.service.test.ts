@@ -5,9 +5,11 @@ const signInMock = vi.fn()
 const createUserWithRole = vi.fn()
 const findUserById = vi.fn()
 
+const signOutMock = vi.fn()
+
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabase: async () => ({
-    auth: { signUp: signUpMock, signInWithPassword: signInMock, signOut: vi.fn() },
+    auth: { signUp: signUpMock, signInWithPassword: signInMock, signOut: signOutMock },
   }),
 }))
 vi.mock('@/lib/db/repositories/user.repository', () => ({ createUserWithRole, findUserById }))
@@ -252,6 +254,82 @@ describe('signUp under Supabase default configuration (email confirmation on)', 
 
     // An absent array is not evidence of a duplicate, so this must NOT be a
     // false CONFLICT — it proceeds and relies on the unique constraint.
+    expect(result.ok).toBe(true)
+  })
+})
+
+/**
+ * A suspended account must be turned away at the door, with the reason.
+ *
+ * `getCurrentUser` returns null for a suspended user, so sign-in "succeeded"
+ * and then every page bounced them back to login — which bounced them forward
+ * again. They looped, with valid credentials, no message, and the notification
+ * explaining the suspension sitting on a page they could not reach.
+ */
+describe('signing in while suspended', () => {
+  beforeEach(() => {
+    signInMock.mockReset()
+    findUserById.mockReset()
+    signOutMock.mockReset()
+    signInMock.mockResolvedValue({ data: { user: { id: 'uid-1' } }, error: null })
+    signOutMock.mockResolvedValue({ error: null })
+  })
+
+  function suspended(reason: string | null = 'Spam listings') {
+    return {
+      id: 'uid-1',
+      email: 'a@b.com',
+      name: 'Rafat',
+      role: 'EMPLOYER',
+      onboardedAt: new Date(),
+      suspendedAt: new Date(),
+      suspendedReason: reason,
+    }
+  }
+
+  it('refuses the sign-in rather than letting it loop', async () => {
+    findUserById.mockResolvedValue(suspended())
+
+    const result = await signIn({ email: 'a@b.com', password: 'longenough1' })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('FORBIDDEN')
+  })
+
+  // The reason is the only thing they can appeal against.
+  it('tells them why', async () => {
+    findUserById.mockResolvedValue(suspended('Spam listings'))
+
+    const result = await signIn({ email: 'a@b.com', password: 'longenough1' })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.message).toContain('Spam listings')
+  })
+
+  it('still says something useful when no reason was recorded', async () => {
+    findUserById.mockResolvedValue(suspended(null))
+
+    const result = await signIn({ email: 'a@b.com', password: 'longenough1' })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.message).toMatch(/suspended/i)
+  })
+
+  // Supabase issued a session before we looked at the row. Leaving it in place
+  // would let a suspended person carry a valid cookie around the app.
+  it('discards the session Supabase just issued', async () => {
+    findUserById.mockResolvedValue(suspended())
+
+    await signIn({ email: 'a@b.com', password: 'longenough1' })
+
+    expect(signOutMock).toHaveBeenCalled()
+  })
+
+  it('lets an account whose suspension was lifted back in', async () => {
+    findUserById.mockResolvedValue({ ...suspended(), suspendedAt: null, suspendedReason: null })
+
+    const result = await signIn({ email: 'a@b.com', password: 'longenough1' })
+
     expect(result.ok).toBe(true)
   })
 })

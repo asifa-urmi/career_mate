@@ -7,6 +7,7 @@ import { err, ok, type Result } from '@/lib/utils/result'
 import type { SessionUser } from '@/lib/auth/session'
 import { completeWithFailover } from '@/lib/ai/router'
 import type { AiFeature, AiMessage } from '@/lib/ai/types'
+import { rateLimitMessage, windowStart, withinLimit } from '@/lib/ai/rate-limit'
 import {
   coachReplySchema,
   coverLetterSchema,
@@ -55,6 +56,11 @@ async function run<T extends z.ZodType>(
   messages: AiMessage[],
   schema: T,
 ): Promise<Result<AiResult<z.infer<T>>>> {
+  // Before a provider is touched, because the point is to stop this account from
+  // exhausting an allowance the whole platform shares.
+  const refusal = await rateLimitRefusal(user, feature)
+  if (refusal) return err(refusal.error)
+
   const startedAt = Date.now()
 
   const outcome = await completeWithFailover({ feature, messages, json: true })
@@ -83,6 +89,38 @@ async function run<T extends z.ZodType>(
     providerLabel: PROVIDER_LABELS[outcome.response.providerId] ?? outcome.response.providerId,
     usedFallback: outcome.usedFallback,
   })
+}
+
+/**
+ * Whether this account has used up its hour for this feature.
+ *
+ * Counted against the interaction log, which is written for every request and so
+ * is the record that already exists — no extra table, no in-memory counter that
+ * a second serverless instance would not see.
+ *
+ * A failure of the count itself lets the request through. This limit protects a
+ * shared allowance; it is not an authorization check, and taking the feature down
+ * because a counting query failed would be the worse outcome.
+ */
+async function rateLimitRefusal(
+  user: SessionUser | null,
+  feature: AiFeature,
+): Promise<{ error: ReturnType<typeof appError> } | null> {
+  if (!user) return null
+
+  try {
+    const used = await prisma.aiInteraction.count({
+      where: { userId: user.id, feature, createdAt: { gte: windowStart(new Date()) } },
+    })
+
+    if (!withinLimit(feature, used)) {
+      return { error: appError('RATE_LIMITED', rateLimitMessage(feature)) }
+    }
+  } catch {
+    // See above: fail open.
+  }
+
+  return null
 }
 
 function safeJson(text: string): unknown {

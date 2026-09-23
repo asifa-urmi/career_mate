@@ -227,7 +227,16 @@ export async function deleteResume(user: SessionUser, resumeId: string): Promise
     if (!resume) return err(appError('NOT_FOUND', 'We could not find that CV.'))
 
     await prisma.resume.delete({ where: { id: resume.id } })
-    await deleteResumeFile(resume.storagePath)
+
+    // Outside the failure path above. The row is already gone, so reporting "we
+    // could not remove that CV. Please try again" because the object failed to
+    // delete would be false, and the retry would find nothing to remove.
+    try {
+      await deleteResumeFile(resume.storagePath)
+    } catch {
+      // An orphaned object in the bucket. Not worth telling the person their
+      // deletion failed when it did not.
+    }
 
     // Something has to be primary if anything is left, or the apply form has no
     // default and silently attaches nothing.

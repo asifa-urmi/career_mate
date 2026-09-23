@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db/prisma'
 import { appError } from '@/lib/utils/errors'
 import { err, ok, type Result } from '@/lib/utils/result'
 import type { SessionUser } from '@/lib/auth/session'
+import { notifyUser } from '@/lib/db/repositories/notification.repository'
 import { REPORT_REASONS } from '@/lib/reports/reasons'
 
 /**
@@ -15,6 +16,14 @@ import { REPORT_REASONS } from '@/lib/reports/reasons'
  * still be readable: the queue is a record of what was raised, and a cascade
  * would let the thing complained about take the complaint with it.
  */
+/**
+ * How many reports one account may file per hour.
+ *
+ * Somebody reporting ten things in an hour is thorough. Somebody reporting a
+ * hundred is flooding a queue a human has to read.
+ */
+export const REPORTS_PER_HOUR = 20
+
 export async function fileReport(
   user: SessionUser,
   input: {
@@ -34,7 +43,36 @@ export async function fileReport(
     return err(appError('VALIDATION', 'Choose one of the listed reasons.'))
   }
 
-  if (!input.targetId.trim()) return err(appError('VALIDATION', 'Nothing to report.'))
+  const targetId = input.targetId.trim()
+  if (!targetId) return err(appError('VALIDATION', 'Nothing to report.'))
+
+  // The queue is a moderator's attention. Without these two checks, one signed-in
+  // account could loop unlimited reports against random ids, each rendering as
+  // "the job this was about no longer exists" — indistinguishable from a genuine
+  // report about a deleted listing, and enough of them to bury the real ones.
+  const exists =
+    input.targetType === 'JOB'
+      ? await prisma.job.findUnique({ where: { id: targetId }, select: { id: true } })
+      : await prisma.user.findUnique({ where: { id: targetId }, select: { id: true } })
+
+  if (!exists) {
+    return err(appError('NOT_FOUND', 'We could not find what you are reporting.'))
+  }
+
+  const recent = await prisma.report.count({
+    where: {
+      reporterId: user.id,
+      createdAt: { gte: new Date(Date.now() - 60 * 60 * 1000) },
+    },
+  })
+  if (recent >= REPORTS_PER_HOUR) {
+    return err(
+      appError(
+        'RATE_LIMITED',
+        `You have filed ${REPORTS_PER_HOUR} reports this hour. Give us time to look at those first.`,
+      ),
+    )
+  }
 
   try {
     // Reporting the same thing twice is almost always a double-click, and a
@@ -43,7 +81,7 @@ export async function fileReport(
       where: {
         reporterId: user.id,
         targetType: input.targetType,
-        targetId: input.targetId,
+        targetId,
         status: { in: ['OPEN', 'REVIEWING'] },
       },
       select: { id: true },
@@ -54,7 +92,7 @@ export async function fileReport(
       data: {
         reporterId: user.id,
         targetType: input.targetType,
-        targetId: input.targetId,
+        targetId,
         reason,
         detail: input.detail?.trim().slice(0, 2000) || null,
       },
@@ -103,17 +141,14 @@ export async function resolveReport(
       // Someone who takes the trouble to report something deserves to hear what
       // happened. A queue that swallows reports silently stops receiving them.
       if (status === 'RESOLVED' || status === 'DISMISSED') {
-        await tx.notification.create({
-          data: {
-            userId: report.reporterId,
-            type: 'SYSTEM',
-            title: status === 'RESOLVED' ? 'Your report was acted on' : 'Your report was reviewed',
-            body:
-              status === 'RESOLVED'
-                ? `Thank you — we looked into "${report.reason}" and took action.${trimmed ? ` ${trimmed}` : ''}`
-                : `We looked into "${report.reason}" and did not find a breach of our rules.${trimmed ? ` ${trimmed}` : ''}`,
-            href: '/notifications',
-          },
+        await notifyUser(tx, report.reporterId, {
+          type: 'SYSTEM',
+          title: status === 'RESOLVED' ? 'Your report was acted on' : 'Your report was reviewed',
+          body:
+            status === 'RESOLVED'
+              ? `Thank you — we looked into "${report.reason}" and took action.${trimmed ? ` ${trimmed}` : ''}`
+              : `We looked into "${report.reason}" and did not find a breach of our rules.${trimmed ? ` ${trimmed}` : ''}`,
+          href: '/notifications',
         })
       }
 

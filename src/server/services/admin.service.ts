@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db/prisma'
 import { appError } from '@/lib/utils/errors'
 import { err, ok, type Result } from '@/lib/utils/result'
 import type { SessionUser } from '@/lib/auth/session'
+import { notifyUser } from '@/lib/db/repositories/notification.repository'
 
 /**
  * Admin actions on other accounts.
@@ -55,21 +56,36 @@ export async function changeUserRole(
       if (!target) return { kind: 'not-found' as const }
       if (target.role === role) return { kind: 'unchanged' as const }
 
+      // Only admins who could actually sign in count as a way back in. A
+      // suspended one cannot, so counting them let two admins lock the platform
+      // out of itself: suspend the other, then demote or delete yourself.
       if (target.role === 'ADMIN') {
-        const admins = await tx.user.count({ where: { role: 'ADMIN' } })
-        if (admins <= 1) return { kind: 'last-admin' as const }
+        const admins = await tx.user.count({
+          where: { role: 'ADMIN', suspendedAt: null, id: { not: target.id } },
+        })
+        if (admins < 1) return { kind: 'last-admin' as const }
       }
 
       await tx.user.update({ where: { id: target.id }, data: { role } })
 
-      await tx.notification.create({
+      // Same transaction as the change, so there can be no change nobody is
+      // accountable for. actorName is stored alongside the id because the id
+      // sets null if that admin later deletes their own account.
+      await tx.adminAction.create({
         data: {
-          userId: target.id,
-          type: 'SYSTEM',
-          title: 'Your account type changed',
-          body: `A platform administrator changed your account to ${label(role)}. Sign out and back in to see your new workspace.`,
-          href: '/settings',
+          actorId: admin.id,
+          actorName: admin.name,
+          targetUserId: target.id,
+          action: 'ROLE_CHANGED',
+          detail: `${label(target.role)} to ${label(role)}`,
         },
+      })
+
+      await notifyUser(tx, target.id, {
+        type: 'SYSTEM',
+        title: 'Your account type changed',
+        body: `A platform administrator changed your account to ${label(role)}. Sign out and back in to see your new workspace.`,
+        href: '/settings',
       })
 
       return { kind: 'ok' as const }
@@ -126,8 +142,10 @@ export async function setUserSuspended(
       if (Boolean(target.suspendedAt) === suspended) return { kind: 'unchanged' as const }
 
       if (suspended && target.role === 'ADMIN') {
-        const admins = await tx.user.count({ where: { role: 'ADMIN' } })
-        if (admins <= 1) return { kind: 'last-admin' as const }
+        const admins = await tx.user.count({
+          where: { role: 'ADMIN', suspendedAt: null, id: { not: target.id } },
+        })
+        if (admins < 1) return { kind: 'last-admin' as const }
       }
 
       await tx.user.update({
@@ -137,16 +155,23 @@ export async function setUserSuspended(
           : { suspendedAt: null, suspendedReason: null },
       })
 
-      await tx.notification.create({
+      await tx.adminAction.create({
         data: {
-          userId: target.id,
-          type: 'SYSTEM',
-          title: suspended ? 'Your account is suspended' : 'Your account is active again',
-          body: suspended
-            ? `A platform administrator suspended your account. Reason: ${trimmed}. Contact support if you think this is wrong.`
-            : 'A platform administrator lifted the suspension on your account.',
-          href: '/settings',
+          actorId: admin.id,
+          actorName: admin.name,
+          targetUserId: target.id,
+          action: suspended ? 'SUSPENDED' : 'RESTORED',
+          detail: trimmed ?? null,
         },
+      })
+
+      await notifyUser(tx, target.id, {
+        type: 'SYSTEM',
+        title: suspended ? 'Your account is suspended' : 'Your account is active again',
+        body: suspended
+          ? `A platform administrator suspended your account. Reason: ${trimmed}. Contact support if you think this is wrong.`
+          : 'A platform administrator lifted the suspension on your account.',
+        href: '/settings',
       })
 
       return { kind: 'ok' as const }

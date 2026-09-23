@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db/prisma'
 import { appError } from '@/lib/utils/errors'
 import { err, ok, type Result } from '@/lib/utils/result'
 import type { SessionUser } from '@/lib/auth/session'
+import { notifyUser } from '@/lib/db/repositories/notification.repository'
 
 /**
  * The decisions a moderator can make.
@@ -76,16 +77,17 @@ export async function moderateJob(
         data: { moderation: decision },
       })
 
+      // Nobody to tell if the employer who posted it has since deleted their
+      // account. The decision still stands; the job is the company's.
       const copy = OUTCOME_COPY[decision]
-      await tx.notification.create({
-        data: {
-          userId: job.postedById,
+      if (job.postedById) {
+        await notifyUser(tx, job.postedById, {
           type: 'SYSTEM',
           title: copy?.title ?? 'Moderation update',
           body: `${copy?.body(job.title) ?? job.title}${note ? ` Reason: ${note}` : ''}`,
           href: '/manage-jobs',
-        },
-      })
+        })
+      }
 
       return { kind: 'ok' }
     })

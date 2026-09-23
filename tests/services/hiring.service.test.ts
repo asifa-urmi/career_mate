@@ -6,11 +6,13 @@ const findApplication = vi.fn()
 const updateApplication = vi.fn()
 const createEvent = vi.fn()
 const createNotification = vi.fn()
+const findRecipient = vi.fn()
 
 const tx = {
   application: { findFirst: findApplication, update: updateApplication },
   applicationEvent: { create: createEvent },
   notification: { create: createNotification },
+  user: { findUnique: findRecipient },
 }
 
 vi.mock('@/lib/db/prisma', () => ({
@@ -35,6 +37,8 @@ function user(overrides: Partial<SessionUser> = {}): SessionUser {
 }
 
 beforeEach(() => {
+  findRecipient.mockReset()
+  findRecipient.mockResolvedValue({ notifyOn: ['APPLICATION_UPDATE'] })
   for (const m of [findEmployer, findApplication, updateApplication, createEvent, createNotification]) {
     m.mockReset()
   }
@@ -179,5 +183,39 @@ describe('changeApplicationStage', () => {
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('FORBIDDEN')
     expect(updateApplication).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * The settings panel offers a toggle for application updates and said "Saved."
+ * while this writer ignored it entirely — only messaging consulted `notifyOn`.
+ * Three of the four toggles did nothing at all.
+ */
+describe('stage-change notifications respect the preference', () => {
+  it('writes nothing when the candidate turned application updates off', async () => {
+    findRecipient.mockResolvedValue({ notifyOn: ['NEW_MESSAGE'] })
+
+    const result = await changeApplicationStage(user(), 'app-1', 'INTERVIEW')
+
+    expect(result.ok).toBe(true)
+    expect(createNotification).not.toHaveBeenCalled()
+  })
+
+  // The move itself is not a notification and must happen either way.
+  it('still moves the application', async () => {
+    findRecipient.mockResolvedValue({ notifyOn: [] })
+
+    await changeApplicationStage(user(), 'app-1', 'INTERVIEW')
+
+    expect(updateApplication).toHaveBeenCalled()
+  })
+
+  it('asks about the candidate, not the employer making the change', async () => {
+    await changeApplicationStage(user(), 'app-1', 'INTERVIEW')
+
+    expect(findRecipient).toHaveBeenCalledWith({
+      where: { id: 'uid-cand' },
+      select: { notifyOn: true },
+    })
   })
 })

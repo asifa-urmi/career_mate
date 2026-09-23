@@ -5,6 +5,7 @@ import { PageHead } from '@/components/layout'
 import { Avatar, Badge, Button, Card, CardTitle, SkillTag, StatusChip } from '@/components/ui'
 import { StageControl } from '@/components/employer/stage-control'
 import { MessageCandidateButton } from '@/components/employer/message-candidate-button'
+import { ResumeDownloadButton } from '@/components/employer/resume-download-button'
 import { categoryLabel } from '@/config/categories'
 import { EXPERIENCE_LEVELS, stageLabel } from '@/config/constants'
 import { relativeTime } from '@/lib/utils/format'
@@ -163,17 +164,24 @@ export default async function CandidateDetailPage({
           <Card padded>
             <CardTitle>CV</CardTitle>
             {application.resume ? (
-              <p className="m-0 text-[13px] leading-relaxed text-muted">
-                <b className="text-navy">{application.resume.label}</b>
-                <br />
-                {application.resume.fileName}
-                <br />
-                <span className="text-xs">Downloading arrives with CV storage.</span>
-              </p>
+              <>
+                <p className="m-0 text-[13px] leading-relaxed text-muted">
+                  <b className="text-navy">{application.resume.label}</b>
+                  <br />
+                  {application.resume.fileName}
+                </p>
+                <ResumeDownloadButton
+                  resumeId={application.resume.id}
+                  fileName={application.resume.fileName}
+                />
+                <p className="m-0 mt-2 text-xs leading-relaxed text-muted">
+                  The link expires in two minutes and is not stored anywhere.
+                </p>
+              </>
             ) : (
               <p className="m-0 text-[13px] leading-relaxed text-muted">
-                No CV attached. CV upload arrives with the AI features — until then, judge on the
-                profile and answers here.
+                This application has no CV attached — judge it on the profile and the answers
+                here.
               </p>
             )}
           </Card>

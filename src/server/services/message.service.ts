@@ -4,6 +4,11 @@ import { prisma } from '@/lib/db/prisma'
 import { appError } from '@/lib/utils/errors'
 import { err, ok, type Result } from '@/lib/utils/result'
 import type { SessionUser } from '@/lib/auth/session'
+import { notifyUser } from '@/lib/db/repositories/notification.repository'
+import {
+  findConversation,
+  type ConversationDetail,
+} from '@/lib/db/repositories/message.repository'
 
 const MAX_MESSAGE_LENGTH = 5000
 
@@ -125,22 +130,11 @@ export async function sendMessage(
       })
 
       for (const other of others) {
-        const recipient = await tx.user.findUnique({
-          where: { id: other.userId },
-          select: { notifyOn: true },
-        })
-
-        // A notification someone asked not to receive is spam with extra steps.
-        if (!recipient?.notifyOn.includes('NEW_MESSAGE')) continue
-
-        await tx.notification.create({
-          data: {
-            userId: other.userId,
-            type: 'NEW_MESSAGE',
-            title: `New message from ${user.name}`,
-            body: trimmed.slice(0, 160),
-            href: '/messages',
-          },
+        await notifyUser(tx, other.userId, {
+          type: 'NEW_MESSAGE',
+          title: `New message from ${user.name}`,
+          body: trimmed.slice(0, 160),
+          href: '/messages',
         })
       }
 
@@ -174,4 +168,30 @@ export async function markConversationRead(
   } catch {
     return err(appError('INTERNAL', 'Please try again.'))
   }
+}
+
+/**
+ * Reads one thread and marks it read, for a participant only.
+ *
+ * The action used to call the repository directly. The membership predicate was
+ * in the `where`, so it was never unsafe — but an authorization decision sat
+ * outside the layer that owns them, which is how the next one gets made without
+ * a `where` clause.
+ *
+ * Opening a thread is reading it. Not marking it read would leave the unread
+ * mark on forever and train people to ignore it.
+ */
+export async function openConversation(
+  user: SessionUser,
+  conversationId: string,
+): Promise<Result<ConversationDetail>> {
+  const conversation = await findConversation(user.id, conversationId)
+
+  // Not found rather than forbidden: whether a thread exists is not something a
+  // non-participant should be able to establish.
+  if (!conversation) return err(appError('NOT_FOUND', 'We could not find that conversation.'))
+
+  await markConversationRead(user, conversationId)
+
+  return ok(conversation)
 }

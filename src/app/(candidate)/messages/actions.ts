@@ -3,11 +3,10 @@
 import { revalidatePath } from 'next/cache'
 import { requireUser } from '@/lib/auth/guards'
 import {
-  markConversationRead,
+  openConversation,
   sendMessage,
   startConversation,
 } from '@/server/services/message.service'
-import { findConversation } from '@/lib/db/repositories/message.repository'
 import type { ConversationDetail } from '@/lib/db/repositories/message.repository'
 
 /**
@@ -20,15 +19,16 @@ export async function openConversationAction(
 ): Promise<{ conversation?: ConversationDetail; error?: string }> {
   const user = await requireUser()
 
-  const conversation = await findConversation(user.id, conversationId)
-  if (!conversation) return { error: 'We could not find that conversation.' }
+  const result = await openConversation(user, conversationId)
+  if (!result.ok) return { error: result.error.message }
 
-  // Opening it is reading it. Failing to mark it read would leave the badge on
-  // forever and train people to ignore it.
-  await markConversationRead(user, conversationId)
-  revalidatePath('/', 'layout')
+  // The two inboxes, not the whole shell. Opening a thread clears its unread
+  // mark in the list beside it; nothing outside these pages shows unread state,
+  // so revalidating the layout was work nobody could see.
+  revalidatePath('/messages')
+  revalidatePath('/employer/messages')
 
-  return { conversation }
+  return { conversation: result.value }
 }
 
 export async function sendMessageAction(

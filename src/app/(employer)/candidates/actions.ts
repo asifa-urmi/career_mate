@@ -5,6 +5,7 @@ import type { ApplicationStage } from '@prisma/client'
 import { z } from 'zod'
 import { requireUser } from '@/lib/auth/guards'
 import { changeApplicationStage } from '@/server/services/hiring.service'
+import { signedResumeUrl } from '@/server/services/resume-access.service'
 
 /**
  * A server action's arguments are attacker-controlled like any request body.
@@ -56,4 +57,22 @@ export async function changeStageAction(
   revalidatePath('/candidates')
   revalidatePath('/pipeline')
   return {}
+}
+
+/**
+ * A short-lived link to an applicant's CV.
+ *
+ * The id comes from the client, so nothing here is trusted: `signedResumeUrl`
+ * re-derives the entitlement from an application to a job this employer's own
+ * company posted, in the `where` clause. An employer who guesses a resume id
+ * gets NOT_FOUND, exactly as if it did not exist.
+ */
+export async function downloadApplicantResumeAction(
+  resumeId: string,
+): Promise<{ url?: string; error?: string }> {
+  const user = await requireUser()
+  const result = await signedResumeUrl(user, resumeId)
+
+  if (!result.ok) return { error: result.error.message }
+  return { url: result.value.url }
 }

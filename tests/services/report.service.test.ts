@@ -4,6 +4,9 @@ import { REPORT_REASONS } from '@/lib/reports/reasons'
 
 const findReport = vi.fn()
 const createReport = vi.fn()
+const countRecentReports = vi.fn()
+const findJob = vi.fn()
+const findTargetUser = vi.fn()
 const updateReport = vi.fn()
 const findReportTx = vi.fn()
 const createNotification = vi.fn()
@@ -15,12 +18,16 @@ const tx = {
 
 vi.mock('@/lib/db/prisma', () => ({
   prisma: {
-    report: { findFirst: findReport, create: createReport },
+    report: { findFirst: findReport, create: createReport, count: countRecentReports },
+    job: { findUnique: findJob },
+    user: { findUnique: findTargetUser },
     $transaction: (fn: (t: typeof tx) => unknown) => fn(tx),
   },
 }))
 
-const { fileReport, resolveReport } = await import('@/server/services/report.service')
+const { REPORTS_PER_HOUR, fileReport, resolveReport } = await import(
+  '@/server/services/report.service'
+)
 
 function user(role: SessionUser['role'] = 'CANDIDATE', id = 'uid-1'): SessionUser {
   return { id, email: 'a@b.com', name: 'A', role, onboardedAt: new Date(), onboarded: true }
@@ -33,10 +40,22 @@ const report = {
 }
 
 beforeEach(() => {
-  for (const m of [findReport, createReport, updateReport, findReportTx, createNotification]) {
+  for (const m of [
+    findReport,
+    createReport,
+    updateReport,
+    findReportTx,
+    createNotification,
+    countRecentReports,
+    findJob,
+    findTargetUser,
+  ]) {
     m.mockReset()
   }
   findReport.mockResolvedValue(null)
+  countRecentReports.mockResolvedValue(0)
+  findJob.mockResolvedValue({ id: 'job-1' })
+  findTargetUser.mockResolvedValue({ id: 'uid-target' })
   createReport.mockResolvedValue({ id: 'rep-1' })
   findReportTx.mockResolvedValue({
     id: 'rep-1',
@@ -199,5 +218,74 @@ describe('resolveReport', () => {
 
     expect(updateReport).toHaveBeenCalled()
     expect(createNotification).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * The queue is a moderator's attention, and it was open to anyone signed in.
+ *
+ * `targetId` was only checked non-empty, so a loop could file unlimited reports
+ * against random ids — each one rendering as "the job this was about no longer
+ * exists", indistinguishable from a genuine report about a deleted listing, and
+ * burying the real ones.
+ */
+describe('reports are about something, and are rationed', () => {
+  it('refuses a report about a job that does not exist', async () => {
+    findJob.mockResolvedValue(null)
+
+    const result = await fileReport(user(), report)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('NOT_FOUND')
+    expect(createReport).not.toHaveBeenCalled()
+  })
+
+  it('refuses a report about an account that does not exist', async () => {
+    findTargetUser.mockResolvedValue(null)
+
+    const result = await fileReport(user(), {
+      targetType: 'USER',
+      targetId: 'nobody',
+      reason: 'Harassment or abuse',
+    })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('NOT_FOUND')
+    expect(createReport).not.toHaveBeenCalled()
+  })
+
+  it('files a report about a job that does exist', async () => {
+    const result = await fileReport(user(), report)
+
+    expect(result.ok).toBe(true)
+    expect(createReport).toHaveBeenCalled()
+  })
+
+  // Somebody reporting ten things in an hour is thorough. Somebody reporting a
+  // hundred is flooding the queue.
+  it('refuses once this account has filed its hourly allowance', async () => {
+    countRecentReports.mockResolvedValue(REPORTS_PER_HOUR)
+
+    const result = await fileReport(user(), report)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('RATE_LIMITED')
+    expect(createReport).not.toHaveBeenCalled()
+  })
+
+  it('counts only this reporter, over the last hour', async () => {
+    await fileReport(user(), report)
+
+    const where = countRecentReports.mock.calls[0]?.[0]?.where
+    expect(where).toMatchObject({ reporterId: 'uid-1' })
+    expect(where?.createdAt?.gte).toBeInstanceOf(Date)
+  })
+
+  it('still allows a report well inside the allowance', async () => {
+    countRecentReports.mockResolvedValue(REPORTS_PER_HOUR - 1)
+
+    const result = await fileReport(user(), report)
+
+    expect(result.ok).toBe(true)
   })
 })

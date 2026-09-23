@@ -1,6 +1,7 @@
 import type { Role } from '@prisma/client'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { findUserById } from '@/lib/db/repositories/user.repository'
+import { prisma } from '@/lib/db/prisma'
 
 export type SessionUser = {
   id: string
@@ -60,9 +61,30 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   // their candidates through a route somebody forgot to cover.
   if (user.suspendedAt) return null
 
+  /**
+   * Where a confirmed email change lands.
+   *
+   * `changeEmail` asks Supabase and deliberately leaves our row alone, because
+   * Supabase only switches the auth email once the confirmation link is clicked
+   * — and until then the old address is still the one that signs in. The auth
+   * user is already being read here, so this costs nothing on the common path
+   * and one write on the single page load after a confirmation.
+   *
+   * A failure is swallowed: a collision on the unique index must not take down
+   * every page for this person.
+   */
+  const email = data.user.email ?? user.email
+  if (email !== user.email) {
+    try {
+      await prisma.user.update({ where: { id: user.id }, data: { email } })
+    } catch {
+      // The session still resolves; the row catches up on a later load.
+    }
+  }
+
   return {
     id: user.id,
-    email: user.email,
+    email,
     name: user.name,
     role: user.role,
     onboardedAt: user.onboardedAt,

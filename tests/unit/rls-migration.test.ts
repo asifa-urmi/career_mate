@@ -25,7 +25,17 @@ function allMigrationSql(): string {
 }
 
 const init = migrationSql('init')
-const rls = migrationSql('rls')
+
+/**
+ * Also collected across ALL migrations.
+ *
+ * Reading only the deny-all migration would mean a table added later could only
+ * be locked down by editing a migration that has already been applied — which
+ * changes nothing in a database that ran it, and silently drifts the checksum.
+ * A later migration carries its own deny-all block instead, and this still sees
+ * it.
+ */
+const rls = allMigrationSql()
 
 /**
  * Collected across ALL migrations, not just init.

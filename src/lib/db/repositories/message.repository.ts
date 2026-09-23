@@ -117,7 +117,3 @@ export async function findConversation(
   }
 }
 
-export async function unreadConversationCount(userId: string): Promise<number> {
-  const conversations = await listConversations(userId)
-  return conversations.filter((c) => c.unread).length
-}

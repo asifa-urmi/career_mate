@@ -15,15 +15,23 @@ import { openConversationAction, sendMessageAction } from '@/app/(candidate)/mes
  *
  * A candidate and an employer see the same thing: the threads they are in. The
  * only asymmetry is who may start one, which the service decides — not this.
+ *
+ * `jobHrefFor` has no default on purpose. This used to link "View role" at
+ * `/jobs/[id]`, which is the candidate group, so every employer who clicked it
+ * was redirected to their dashboard with no explanation. A required prop makes
+ * each page state where its own role may go, and the typechecker refuses a page
+ * that forgets.
  */
 export function Inbox({
   conversations,
   initial,
   emptyBody,
+  jobHrefFor,
 }: {
   conversations: ConversationSummary[]
   initial: ConversationDetail | null
   emptyBody: string
+  jobHrefFor: (jobId: string) => string
 }) {
   const [open, setOpen] = useState<ConversationDetail | null>(initial)
   const [body, setBody] = useState('')
@@ -114,7 +122,7 @@ export function Inbox({
                   <span className="block truncate text-xs text-muted">{open.subject}</span>
                 </div>
                 {open.jobId && (
-                  <Button href={`/jobs/${open.jobId}`} variant="ghost" size="sm">
+                  <Button href={jobHrefFor(open.jobId)} variant="ghost" size="sm">
                     View role
                   </Button>
                 )}

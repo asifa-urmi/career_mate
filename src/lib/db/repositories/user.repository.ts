@@ -24,6 +24,14 @@ export function findUserById(id: string) {
   return prisma.user.findUnique({ where: { id }, select: SESSION_SELECT })
 }
 
+/** What the settings page needs: preferences and when the account was opened. */
+export function findAccountSettings(id: string) {
+  return prisma.user.findUnique({
+    where: { id },
+    select: { notifyOn: true, createdAt: true },
+  })
+}
+
 export function findUserByEmail(email: string) {
   return prisma.user.findUnique({ where: { email }, select: SESSION_SELECT })
 }

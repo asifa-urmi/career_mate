@@ -30,6 +30,7 @@ export default async function EmployerMessagesPage() {
         }
       />
       <Inbox
+        jobHrefFor={(id) => `/manage-jobs/${id}`}
         conversations={conversations}
         initial={initial}
         emptyBody="Open a conversation from a candidate's page. You can message anyone who has applied to one of your roles."

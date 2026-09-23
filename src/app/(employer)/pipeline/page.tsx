@@ -8,7 +8,11 @@ import {
   companyIdForUser,
   listCompanyJobs,
 } from '@/lib/db/repositories/employer.repository'
-import { pipelineForCompany } from '@/lib/db/repositories/analytics.repository'
+import {
+  countPipeline,
+  describePipeline,
+  pipelineForCompany,
+} from '@/lib/db/repositories/analytics.repository'
 import { cn } from '@/lib/utils/cn'
 
 export const metadata: Metadata = { title: 'Hiring pipeline — CareerMate' }
@@ -27,21 +31,24 @@ export default async function PipelinePage({
   // String column is a 500 on an authenticated page.
   const jobId = Array.isArray(params.jobId) ? params.jobId[0] : params.jobId
 
-  const [columns, jobs] = companyId
-    ? await Promise.all([pipelineForCompany(companyId, jobId), listCompanyJobs(companyId)])
-    : [[], []]
+  const [columns, jobs, total] = companyId
+    ? await Promise.all([
+        pipelineForCompany(companyId, jobId),
+        listCompanyJobs(companyId),
+        countPipeline(companyId, jobId),
+      ])
+    : [[], [], 0]
 
-  const inPipeline = columns.reduce((sum, c) => sum + c.applications.length, 0)
+  // Counted in the database, not taken from the board's length: the board is
+  // capped, and reporting the cap as the total quietly hid every candidate past
+  // it from an employer checking whether they had replied to everyone.
+  const shown = columns.reduce((sum, c) => sum + c.applications.length, 0)
 
   return (
     <>
       <PageHead
         title="Hiring pipeline"
-        description={
-          inPipeline === 0
-            ? 'Candidates appear here as they apply.'
-            : `${inPipeline} ${inPipeline === 1 ? 'candidate' : 'candidates'} in progress.`
-        }
+        description={describePipeline(shown, total)}
         actions={
           <Button href="/candidates" variant="ghost">
             List view
@@ -63,7 +70,7 @@ export default async function PipelinePage({
         </div>
       )}
 
-      {inPipeline === 0 ? (
+      {total === 0 ? (
         <Card>
           <EmptyState
             glyph="◫"

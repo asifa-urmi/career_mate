@@ -10,7 +10,7 @@ import {
   PasswordPanel,
 } from '@/components/settings/settings-panels'
 import { homePathFor } from '@/lib/auth/roles'
-import { prisma } from '@/lib/db/prisma'
+import { findAccountSettings } from '@/lib/db/repositories/user.repository'
 
 export const metadata: Metadata = { title: 'Settings — CareerMate' }
 export const dynamic = 'force-dynamic'
@@ -24,10 +24,7 @@ const ROLE_LABEL = {
 export default async function SettingsPage() {
   const user = await requireGroup('shared')
 
-  const account = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: { notifyOn: true, createdAt: true },
-  })
+  const account = await findAccountSettings(user.id)
 
   return (
     <>

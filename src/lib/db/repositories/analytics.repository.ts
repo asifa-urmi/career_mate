@@ -33,6 +33,16 @@ export type HiringAnalytics = {
  * data to aggregate in the first place — the scoping is in the query, not in a
  * filter applied to a wider result.
  */
+/**
+ * How many rows the timing averages are computed from.
+ *
+ * These are averages, not totals: the funnel counts come from a `groupBy` that
+ * aggregates in the database and is not bounded by this. A mean over the most
+ * recent thousand applications in the window is the same number as a mean over
+ * ten thousand, for a fraction of the read.
+ */
+const SAMPLE_LIMIT = 1000
+
 export async function hiringAnalytics(companyId: string, days = 30): Promise<HiringAnalytics> {
   const since = new Date(Date.now() - days * 86_400_000)
   const ownJobs = { job: { companyId } }
@@ -45,12 +55,25 @@ export async function hiringAnalytics(companyId: string, days = 30): Promise<Hir
     }),
     prisma.application.findMany({
       where: { ...ownJobs, createdAt: { gte: since } },
+      orderBy: { createdAt: 'desc' },
+      take: SAMPLE_LIMIT,
       select: { createdAt: true },
     }),
     // The first event that is not the application's own APPLIED entry — that is
     // when a human actually looked at it.
+    //
+    // Bounded to the window and to a sample size, because this is a per-row read
+    // with a nested event and the page renders it on every visit. Unbounded, a
+    // company with years of hiring behind it read every application it had ever
+    // received to produce one average.
     prisma.application.findMany({
-      where: { ...ownJobs, events: { some: { toStage: { not: 'APPLIED' } } } },
+      where: {
+        ...ownJobs,
+        createdAt: { gte: since },
+        events: { some: { toStage: { not: 'APPLIED' } } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: SAMPLE_LIMIT,
       select: {
         createdAt: true,
         events: {
@@ -62,7 +85,9 @@ export async function hiringAnalytics(companyId: string, days = 30): Promise<Hir
       },
     }),
     prisma.application.findMany({
-      where: { ...ownJobs, stage: 'OFFER' },
+      where: { ...ownJobs, stage: 'OFFER', createdAt: { gte: since } },
+      orderBy: { createdAt: 'desc' },
+      take: SAMPLE_LIMIT,
       select: {
         createdAt: true,
         events: {
@@ -122,6 +147,43 @@ export type PipelineColumn = {
  * Only the five progressing stages: rejected and withdrawn applications are not
  * "in the pipeline", and two dead columns would take up half the board.
  */
+/**
+ * How many cards the board holds.
+ *
+ * A drag-and-drop board of several thousand cards is not usable, and the read
+ * has to stop somewhere. What matters is that the page says so — see
+ * `describePipeline`.
+ */
+export const PIPELINE_LIMIT = 300
+
+/**
+ * What the board says about its own completeness.
+ *
+ * The page used to report the number of cards it had received as the number of
+ * candidates in progress. Past the limit that number was simply wrong, and the
+ * missing candidates were invisible. An employer checking whether they have
+ * replied to everyone needs to know where the board stops.
+ */
+export function describePipeline(shown: number, total: number): string {
+  if (total === 0) return 'Candidates appear here as they apply.'
+
+  const noun = total === 1 ? 'candidate' : 'candidates'
+  if (shown >= total) return `${total} ${noun} in progress.`
+
+  return `${total} ${noun} in progress — showing the ${shown} most recent.`
+}
+
+/** How many applications are actually in progress, whatever the board holds. */
+export async function countPipeline(companyId: string, jobId?: string): Promise<number> {
+  return prisma.application.count({
+    where: {
+      job: { companyId },
+      ...(jobId ? { jobId } : {}),
+      stage: { in: ['APPLIED', 'SCREENING', 'INTERVIEW', 'ASSESSMENT', 'OFFER'] },
+    },
+  })
+}
+
 export async function pipelineForCompany(
   companyId: string,
   jobId?: string,
@@ -133,7 +195,7 @@ export async function pipelineForCompany(
       stage: { in: ['APPLIED', 'SCREENING', 'INTERVIEW', 'ASSESSMENT', 'OFFER'] },
     },
     orderBy: { updatedAt: 'desc' },
-    take: 300,
+    take: PIPELINE_LIMIT,
     select: {
       id: true,
       stage: true,

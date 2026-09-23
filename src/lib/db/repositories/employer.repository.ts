@@ -168,7 +168,7 @@ export async function findCompanyApplication(companyId: string, applicationId: s
       createdAt: true,
       coverLetter: true,
       screeningAnswers: true,
-      resume: { select: { label: true, fileName: true } },
+      resume: { select: { id: true, label: true, fileName: true } },
       job: { select: { id: true, title: true } },
       candidateProfile: {
         select: {
@@ -213,6 +213,16 @@ export type ModerationQueueItem = {
   location: string
   salaryLabel: string
   summary: string
+  /**
+   * The rest of the body, because a moderator approves what they can see.
+   *
+   * Only the summary used to reach this screen, so the parts a candidate
+   * actually reads were approved by someone who had never seen them — which is
+   * exactly where a listing hides a line telling applicants to email a scan of
+   * their national ID.
+   */
+  responsibilities: string[]
+  requirements: string[]
   status: JobStatus
   moderation: ModerationStatus
   postedByName: string
@@ -242,6 +252,8 @@ export async function listJobsForModeration(
       salaryMaxBdt: true,
       salaryNote: true,
       summary: true,
+      responsibilities: true,
+      requirements: true,
       status: true,
       moderation: true,
       updatedAt: true,
@@ -259,9 +271,13 @@ export async function listJobsForModeration(
     location: j.location,
     salaryLabel: formatTaka(j.salaryMinBdt, j.salaryMaxBdt, j.salaryNote),
     summary: j.summary,
+    responsibilities: j.responsibilities,
+    requirements: j.requirements,
     status: j.status,
     moderation: j.moderation,
-    postedByName: j.postedBy.name,
+    // The poster's account may have been deleted since. The listing is the
+    // company's, so it survives them.
+    postedByName: j.postedBy?.name ?? 'a former colleague',
     submittedLabel: relativeTime(j.updatedAt, now),
   }))
 }

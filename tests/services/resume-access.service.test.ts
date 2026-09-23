@@ -95,14 +95,25 @@ describe('an employer', () => {
     expect(signUrl).not.toHaveBeenCalled()
   })
 
-  it('cannot reach a CV merely because the candidate applied somewhere', async () => {
-    // The query requires the company match; a resume with applications only to
-    // other companies simply does not match it.
-    findResume.mockResolvedValue(null)
+  /**
+   * Mocking the query to return nothing and asserting failure proves nothing —
+   * it tests the mock. What carries weight is the predicate the service sends,
+   * which is the thing that would let an employer read any CV by id if it were
+   * dropped.
+   */
+  it('derives the entitlement from an application to its own company job', async () => {
+    await signedResumeUrl(user('EMPLOYER'), 'res-1')
 
-    const result = await signedResumeUrl(user('EMPLOYER'), 'res-1')
+    expect(findResume.mock.calls[0]?.[0]?.where).toMatchObject({
+      id: 'res-1',
+      applications: { some: { job: { companyId: 'co-1' } } },
+    })
+  })
 
-    expect(result.ok).toBe(false)
+  it('never asks by resume id alone', async () => {
+    await signedResumeUrl(user('EMPLOYER'), 'res-1')
+
+    expect(findResume.mock.calls[0]?.[0]?.where).not.toEqual({ id: 'res-1' })
   })
 })
 
@@ -130,3 +141,4 @@ describe('link creation', () => {
     if (!result.ok) expect(result.error.code).toBe('INTERNAL')
   })
 })
+
