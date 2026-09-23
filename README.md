@@ -87,8 +87,14 @@ Then collect five values:
 - **Connect** (top bar) → **ORMs** → **Prisma**: gives you `DATABASE_URL` (the
   pooled connection, port 6543) and `DIRECT_URL` (the direct connection, port
   5432). Replace `[YOUR-PASSWORD]` in both.
-- **Settings** → **API Keys**: the Project URL, the `anon public` key and the
-  `service_role` key.
+- **Settings** → **API Keys**: the Project URL, the **publishable** key
+  (`sb_publishable_...`) and the **secret** key (`sb_secret_...`).
+
+The environment variables keep the older names: the publishable key goes in
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` and the secret key in
+`SUPABASE_SERVICE_ROLE_KEY`. Supabase renamed them — a current project shows
+only the new names, so there is nothing in the dashboard labelled
+`service_role` to look for.
 
 Copy `.env.example` to `.env.local` and fill them in:
 
