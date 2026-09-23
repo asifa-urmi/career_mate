@@ -16,22 +16,28 @@ import { openConversationAction, sendMessageAction } from '@/app/(candidate)/mes
  * A candidate and an employer see the same thing: the threads they are in. The
  * only asymmetry is who may start one, which the service decides — not this.
  *
- * `jobHrefFor` has no default on purpose. This used to link "View role" at
+ * `jobHrefPrefix` has no default on purpose. This used to link "View role" at
  * `/jobs/[id]`, which is the candidate group, so every employer who clicked it
  * was redirected to their dashboard with no explanation. A required prop makes
  * each page state where its own role may go, and the typechecker refuses a page
  * that forgets.
+ *
+ * A string rather than a function that builds the href. This is a client
+ * component, so its props are serialised across the server boundary — and a
+ * function does not serialise. Passing one failed the whole render, which in
+ * production is a 500 and an error card with a digest instead of a reason.
  */
 export function Inbox({
   conversations,
   initial,
   emptyBody,
-  jobHrefFor,
+  jobHrefPrefix,
 }: {
   conversations: ConversationSummary[]
   initial: ConversationDetail | null
   emptyBody: string
-  jobHrefFor: (jobId: string) => string
+  /** Where this side's "View role" goes, e.g. `/jobs` or `/manage-jobs`. */
+  jobHrefPrefix: string
 }) {
   const [open, setOpen] = useState<ConversationDetail | null>(initial)
   const [body, setBody] = useState('')
@@ -122,7 +128,7 @@ export function Inbox({
                   <span className="block truncate text-xs text-muted">{open.subject}</span>
                 </div>
                 {open.jobId && (
-                  <Button href={jobHrefFor(open.jobId)} variant="ghost" size="sm">
+                  <Button href={`${jobHrefPrefix}/${open.jobId}`} variant="ghost" size="sm">
                     View role
                   </Button>
                 )}

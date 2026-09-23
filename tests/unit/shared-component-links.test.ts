@@ -11,16 +11,18 @@ import { canAccess, routeGroupFor } from '@/lib/auth/roles'
  * redirected to their dashboard with no explanation — the link was not broken,
  * it was forbidden, which looks identical and reads as the app misbehaving.
  *
- * So the href arrives as a prop, and each page supplies one its own role can
- * actually reach. These assert the values the two pages pass.
+ * So the prefix arrives as a prop, and each page supplies one its own role can
+ * actually reach. A string, not a function: the inbox is a client component, and
+ * a function prop does not survive serialisation across the server boundary —
+ * which failed the whole render and returned 500.
  */
 describe('the shared inbox links each side somewhere it can go', () => {
   function jobHrefIn(page: string): string {
     const source = readFileSync(join(process.cwd(), 'src', 'app', page), 'utf8')
-    const match = /jobHrefFor=\{\(id\) => `([^`]+)`\}/.exec(source)
+    const match = /jobHrefPrefix="([^"]+)"/.exec(source)
 
-    expect(match, `${page} passes no jobHrefFor to Inbox`).not.toBeNull()
-    return (match?.[1] ?? '').replace('${id}', 'some-job-id')
+    expect(match, `${page} passes no jobHrefPrefix to Inbox`).not.toBeNull()
+    return `${match?.[1] ?? ''}/some-job-id`
   }
 
   it('sends a candidate to a route candidates may enter', () => {
@@ -49,5 +51,7 @@ describe('the shared inbox links each side somewhere it can go', () => {
     )
 
     expect(inbox).not.toMatch(/href=\{`\/jobs\//)
+    // And it must stay a string, or the render breaks again.
+    expect(inbox).toMatch(/jobHrefPrefix: string/)
   })
 })

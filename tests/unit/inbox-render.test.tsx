@@ -56,7 +56,7 @@ describe('the inbox renders', () => {
         conversations={[]}
         initial={null}
         emptyBody="When an employer gets in touch, the conversation appears here."
-        jobHrefFor={(id) => `/jobs/${id}`}
+        jobHrefPrefix="/jobs"
       />,
     )
 
@@ -69,7 +69,7 @@ describe('the inbox renders', () => {
         conversations={[summary]}
         initial={detail}
         emptyBody="…"
-        jobHrefFor={(id) => `/jobs/${id}`}
+        jobHrefPrefix="/jobs"
       />,
     )
 
@@ -83,7 +83,7 @@ describe('the inbox renders', () => {
         conversations={[summary]}
         initial={{ ...detail, jobId: null }}
         emptyBody="…"
-        jobHrefFor={(id) => `/jobs/${id}`}
+        jobHrefPrefix="/jobs"
       />,
     )
 
@@ -96,7 +96,7 @@ describe('the inbox renders', () => {
         conversations={[summary]}
         initial={null}
         emptyBody="…"
-        jobHrefFor={(id) => `/jobs/${id}`}
+        jobHrefPrefix="/jobs"
       />,
     )
 
