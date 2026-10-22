@@ -37,9 +37,16 @@ export async function updateSession(request: NextRequest): Promise<{
   // getUser() revalidates the token with Supabase. getSession() only reads the
   // cookie, which a client could have forged, so it must not be used for
   // anything that gates access.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  return { response, userId: user?.id ?? null }
+  try {
+    const timeout = new Promise<{ data: { user: null } }>((resolve) =>
+      setTimeout(() => resolve({ data: { user: null } }), 4000),
+    )
+    const result = await Promise.race([
+      supabase.auth.getUser().catch(() => ({ data: { user: null } })),
+      timeout,
+    ])
+    return { response, userId: result.data.user?.id ?? null }
+  } catch {
+    return { response, userId: null }
+  }
 }
